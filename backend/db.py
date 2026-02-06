@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timezone
+from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -39,7 +39,7 @@ class Node(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False)
-    location = db.Column(db.String(200), nullable = False)
+    location = db.Column(db.String(200), nullable=False)
 
     outgoing_links = db.relationship(
         "NodeLink",
@@ -93,12 +93,21 @@ class Package(db.Model):
         db.ForeignKey("nodes.id"),
         nullable=True
     )
-    
+
     origin_node_id = db.Column(
-        db.ForeignKey("nodes.id")
-    )
-    destination_node = db.Column(
-        db.ForeignKey("nodes.id")
+        db.Integer,
+        db.ForeignKey("nodes.id"),
+        nullable=False
     )
 
-    created_at = db.Column(db.DateTime, default=datetime.now())
+    destination_node_id = db.Column(
+        db.Integer,
+        db.ForeignKey("nodes.id"),
+        nullable=False
+    )
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    current_node = db.relationship("Node", foreign_keys=[current_node_id])
+    origin_node = db.relationship("Node", foreign_keys=[origin_node_id])
+    destination_node = db.relationship("Node", foreign_keys=[destination_node_id])
