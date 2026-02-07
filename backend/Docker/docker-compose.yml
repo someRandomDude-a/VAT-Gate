@@ -39,8 +39,8 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - db_data:/var/lib/mysql
+      - VAT_database:/var/lib/mysql
 
 volumes:
-  db_data:
+  VAT_database:
     driver: local
