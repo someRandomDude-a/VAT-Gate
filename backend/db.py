@@ -15,24 +15,34 @@ class User(db.Model):
     username = db.Column(db.String(150), unique=True, nullable=False)
     hash = db.Column(db.String(255), nullable=False)
 
-    sessions = db.relationship("SessionToken", backref="user", lazy=True)
-    packages = db.relationship("Package", backref="user", lazy=True)
+    sessions = db.relationship(
+        "SessionToken",
+        backref="user",
+        cascade="all, delete-orphan",
+        lazy=True
+        )
+    packages = db.relationship(
+        "Package",
+        backref="user",
+        cascade="all, delete-orphan",
+        lazy=True
+        )
 
 
 class SessionToken(db.Model):
     __tablename__ = "session_tokens"
 
     id = db.Column(db.Integer, primary_key=True)
-    token = db.Column(db.String(255), unique=True, nullable=False)
+    token = db.Column(db.String(255), unique=True, nullable=False, index=True)
 
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey("users.id"),
+        db.ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False
     )
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
 
 class Node(db.Model):
     __tablename__ = "nodes"
@@ -63,51 +73,49 @@ class NodeLink(db.Model):
 
     from_node_id = db.Column(
         db.Integer,
-        db.ForeignKey("nodes.id"),
-        nullable=False
+        db.ForeignKey("nodes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
     )
 
     to_node_id = db.Column(
         db.Integer,
-        db.ForeignKey("nodes.id"),
-        nullable=False
+        db.ForeignKey("nodes.id", ondelete="CASCADE"),
+        nullable=False,
+        index = True
     )
 
-    time = db.Column(db.Float, nullable=False)
+    time = db.Column(db.Numeric(precision=10, scale=2), nullable=False)
 
 
 class Package(db.Model):
     __tablename__ = "packages"
 
     id = db.Column(db.Integer, primary_key=True)
-    token = db.Column(db.String(255), unique=True, nullable=False)
+    token = db.Column(db.String(255), unique=True, nullable=False, index=True)
 
     user_id = db.Column(
         db.Integer,
-        db.ForeignKey("users.id"),
-        nullable=False
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True
     )
 
     current_node_id = db.Column(
         db.Integer,
-        db.ForeignKey("nodes.id"),
+        db.ForeignKey("nodes.id", ondelete="SET NULL"),
         nullable=True
     )
 
     origin_node_id = db.Column(
         db.Integer,
-        db.ForeignKey("nodes.id"),
-        nullable=False
+        db.ForeignKey("nodes.id", ondelete="SET NULL"),
+        nullable=True
     )
 
     destination_node_id = db.Column(
         db.Integer,
-        db.ForeignKey("nodes.id"),
-        nullable=False
+        db.ForeignKey("nodes.id", ondelete="SET NULL"),
+        nullable=True
     )
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    current_node = db.relationship("Node", foreign_keys=[current_node_id])
-    origin_node = db.relationship("Node", foreign_keys=[origin_node_id])
-    destination_node = db.relationship("Node", foreign_keys=[destination_node_id])
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

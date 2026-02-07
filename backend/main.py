@@ -1,18 +1,30 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
+
 
 from db import db, User, SessionToken, Node
 
 app = Flask(__name__)
 CORS(app)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+import os
+DB_USER = os.getenv("MYSQL_USER", "root")
+DB_PASSWORD = os.getenv("MYSQL_PASSWORD", "example")
+DB_HOST = os.getenv("MYSQL_HOST", "db")
+DB_NAME = os.getenv("MYSQL_DATABASE", "example_db")
+
+app.config["SQLALCHEMY_DATABASE_URI"] = (
+    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+)
 
 db.init_app(app)
+
+with app.app_context():
+    db.create_all()
 
 
 # ------------------------
@@ -34,6 +46,12 @@ def require_auth():
 
     if not session:
         return None
+
+    if session.expires_at < datetime.utcnow():
+        db.session.delete(session)
+        db.session.commit()
+        return None
+
 
     return session.user_id
 
@@ -66,12 +84,18 @@ def login():
         return jsonify({"message": "Incorrect Password!"}), 200
 
     token = str(uuid.uuid4())
-    session = SessionToken(token=token, user_id=user.id)
-
+    
+    expires_at = datetime.utcnow() + timedelta(days=7)
+    session = SessionToken(
+        token=token,
+        user_id=user.id,
+        expires_at=expires_at
+    )
+    
     db.session.add(session)
     db.session.commit()
-
     return jsonify({"token": token}), 200
+
 
 @app.route("/api/register", methods=["POST"])
 def createUser():
@@ -173,4 +197,4 @@ def user_packages():
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=80, debug=True)
