@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import uuid
@@ -316,6 +316,11 @@ def user_packages():
         ]
     }), 200
 
+
+@app.route("/")
+def serve_index():
+    frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
+    return send_from_directory(frontend_dir, "index.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80, debug=True)
