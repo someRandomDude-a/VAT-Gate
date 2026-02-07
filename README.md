@@ -12,7 +12,12 @@ Install docker on your deployment location
 - Step 2:
 Download the Files under VAT-GATE/backend/Docker
 - Step 3:
-Run docker-compose.yml
+ -run `cd ./backend/Docker`
+ -run `ssh-keygen -t ed25519 -C "docker-deploy-key" -f ./deploy_key -q`
+ -Add deploy_key.pub to the deploy keys in VAT-GATE
+
 - Step 4:
+Run docker-compose.yml
+- Step 5:
 Open a web browser and navigate to `localhost:8080` for the website itself.<br>
 Navigate to `localhost:8081` to access PHPmyadmin portal

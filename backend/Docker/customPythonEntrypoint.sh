@@ -1,11 +1,23 @@
 #!/bin/bash
 set -e
 
-REPO_URL="https://github.com/someRandomDude-a/VAT-Gate.git"
+REPO_URL="git@github.com:someRandomDude-a/VAT-Gate.git"
 APP_DIR="/app"
 BACKEND_DIR="$APP_DIR/backend"
 REQ_FILE="$BACKEND_DIR/requirements.txt"
 REQ_HASH_FILE="$APP_DIR/.requirements_hash"
+SSH_KEY_PATH="/run/secrets/deploy_key" # Path where we will mount the key
+
+# Check for SSH key
+if [ ! -f "$SSH_KEY_PATH" ]; then
+    echo "Error: SSH Key not found at $SSH_KEY_PATH"
+    exit 1
+fi
+# Setup SSH known hosts
+mkdir -p ~/.ssh
+ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+
+export GIT_SSH_COMMAND="ssh -i $SSH_KEY_PATH -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 
 # Clone the repo if it doesn't exist
 if [ ! -d "$BACKEND_DIR" ]; then
