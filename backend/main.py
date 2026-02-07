@@ -5,7 +5,7 @@ import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-from db import db, User, SessionToken, Node
+from db import db, User, SessionToken, Node, Package, NodeLink
 
 app = Flask(__name__)
 CORS(app)
@@ -55,22 +55,74 @@ def require_auth():
 
     return session.user_id
 
+def hash_password(password: str) -> str:
+    return generate_password_hash(password)
+
+def verify_password(password: str, hashed: str) -> bool:
+    return check_password_hash(hashed, password)
+
+# ------------------------
+# Route calculations
+# ------------------------
+import heapq
+from decimal import Decimal
+
+def dijkstra(start_id, end_id, weight_field):
+    """
+    weight_field: "time" or "cost"
+    """
+    graph = {}
+
+    links = NodeLink.query.all()
+    for link in links:
+        graph.setdefault(link.from_node_id, []).append(
+            (link.to_node_id, getattr(link, weight_field))
+        )
+
+    queue = [(Decimal(0), start_id, [])]
+    visited = set()
+
+    while queue:
+        total, current, path = heapq.heappop(queue)
+
+        if current in visited:
+            continue
+        visited.add(current)
+
+        path = path + [current]
+
+        if current == end_id:
+            return {
+                "path": path,
+                "total": float(total)
+            }
+
+        for neighbor, weight in graph.get(current, []):
+            if neighbor not in visited:
+                heapq.heappush(
+                    queue,
+                    (total + Decimal(weight), neighbor, path)
+                )
+
+    return None
+
+
 
 # ------------------------
 # Auth API
 # ------------------------
 
-def hash_password(password: str) -> str:
-    return generate_password_hash(password)
 
 
-def verify_password(password: str, hashed: str) -> bool:
-    return check_password_hash(hashed, password)
-
+# Login API
 @app.route("/api/login", methods=["POST"])
 def login():
-    username = request.json.get("username")
-    password = request.json.get("password")
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON payload"}), 400
+    
+    username = data.json.get("username")
+    password = data.json.get("password")
 
     if not username or not password:
         return jsonify({"error": "Missing credentials"}), 400
@@ -97,10 +149,15 @@ def login():
     return jsonify({"token": token}), 200
 
 
+# Registration API
 @app.route("/api/register", methods=["POST"])
 def createUser():
-    username = request.json.get("username")
-    password = request.json.get("password")
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON payload"}), 400
+    
+    username = data.json.get("username")
+    password = data.json.get("password")
 
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
@@ -143,15 +200,6 @@ def get_all_tracked_locations():
         ]
     }), 200
 
-
-@app.route("/api/routes/calculate", methods=["POST"])
-def calculate_route():
-    return jsonify({
-        "least_cost_path": [],
-        "least_time_path": []
-    }), 200
-
-
 # ------------------------
 # Route Database API (AUTH REQUIRED)
 # ------------------------
@@ -164,36 +212,109 @@ def create_or_update_connection():
 
     return jsonify({"message": "connection saved"}), 200
 
-
+# Get a list of all existing connections
 @app.route("/api/routes/connections", methods=["GET"])
 def view_all_connections():
     user_id = require_auth()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
 
-    return jsonify({"connections": []}), 200
+    links = NodeLink.query.all()
 
+    return jsonify({
+        "connections": [
+            {
+                "id": link.id,
+                "from_node_id": link.from_node_id,
+                "from_node_name": link.from_node.name if link.from_node else None,
+                "to_node_id": link.to_node_id,
+                "to_node_name": link.to_node.name if link.to_node else None,
+                "time": float(link.time)
+            }
+            for link in links
+        ]
+    }), 200
+
+
+# calculate least cost and least time path between two locations
+@app.route("/api/routes/calculate", methods=["POST", "PUT"])
+def calculate_route_cost():
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    from_node_id = data.get("from_node_id")
+    to_node_id = data.get("to_node_id")
+
+    if not from_node_id or not to_node_id:
+        return jsonify({"error": "from_node_id and to_node_id are required"}), 400
+
+    least_cost = dijkstra(from_node_id, to_node_id, "cost")
+    least_time = dijkstra(from_node_id, to_node_id, "time")
+
+    return jsonify({
+        "least_cost_path": least_cost,
+        "least_time_path": least_time
+    }), 200
 
 # ------------------------
 # Tracking API
 # ------------------------
 
+# Give details of any package if user has the package token
 @app.route("/api/tracking/<package_token>", methods=["GET"])
 def public_package_tracking(package_token):
+    package = Package.query.filter_by(token=package_token).first()
+
+    if not package:
+        return jsonify({"error": "Package not found"}), 404
+
+    # Determine status
+    if package.current_node_id is None:
+        status = "created"
+        last_location = None
+    elif package.current_node_id == package.destination_node_id:
+        status = "delivered"
+        last_location = package.destination_node.name if package.destination_node else None
+    else:
+        status = "in_transit"
+        last_location = package.current_node.name if package.current_node else None
+
     return jsonify({
-        "package_token": package_token,
-        "status": "stub",
-        "last_location": None
+        "package_token": package.token,
+        "status": status,
+        "last_location": last_location,
+        "created_at": package.created_at.isoformat()
     }), 200
 
 
-@app.route("/api/tracking", methods=["GET"])
+# Give list of all packages of the given user
+@app.route("/api/packages", methods=["GET"])
 def user_packages():
     user_id = require_auth()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
 
-    return jsonify({"packages": []}), 200
+    packages = Package.query.filter_by(user_id=user_id).all()
+
+    return jsonify({
+        "packages": [
+            {
+                "id": p.id,
+                "token": p.token,
+                "status": (
+                    "created" if p.current_node_id is None
+                    else "delivered" if p.current_node_id == p.destination_node_id
+                    else "in_transit"
+                ),
+                "current_node": p.current_node.name if p.current_node else None,
+                "origin_node": p.origin_node.name if p.origin_node else None,
+                "destination_node": p.destination_node.name if p.destination_node else None,
+                "created_at": p.created_at.isoformat()
+            }
+            for p in packages
+        ]
+    }), 200
 
 
 if __name__ == "__main__":

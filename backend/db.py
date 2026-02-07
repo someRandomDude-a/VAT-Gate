@@ -68,6 +68,7 @@ class Node(db.Model):
 
 class NodeLink(db.Model):
     __tablename__ = "node_links"
+    
 
     id = db.Column(db.Integer, primary_key=True)
 
@@ -86,6 +87,12 @@ class NodeLink(db.Model):
     )
 
     time = db.Column(db.Numeric(precision=10, scale=2), nullable=False)
+    
+    cost = db.Column(db.Numeric(precision=10, scale=2), nullable=False)
+    __table_args__ = (
+        db.UniqueConstraint("from_node_id", "to_node_id", name="uq_node_link"),
+    )
+
 
 
 class Package(db.Model):
