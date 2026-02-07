@@ -5,7 +5,7 @@ import uuid
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
-from db import db, User, SessionToken, Node, Package, NodeLink
+from db import db, User, SessionToken, Node, Package, NodeLink, PackageEvent
 
 app = Flask(__name__)
 CORS(app)
@@ -406,9 +406,11 @@ def create_node_link():
 
 
 # Allow users logged in that own
-@app.route("/api/packages/update", methods=["POST", "PUT"])
+# In main.py
+
+@app.route("/api/packages/update", methods=["POST"])
 def update_package_location():
-    
+    # 1. Auth Check
     user_id = require_auth()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
@@ -416,34 +418,89 @@ def update_package_location():
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
-
+    
     token = data.get("token")
-    current_node_id = data.get("current_node_id")
+    new_node_id = data.get("current_node_id")
 
-    if not token or current_node_id is None:
-        return jsonify({"error": "Token and current_node_id are required"}), 400
+    if not token or not new_node_id:
+        return jsonify({"error": "Missing data"}), 400
 
     package = Package.query.filter_by(token=token).first()
     if not package:
         return jsonify({"error": "Package not found"}), 404
-
-    if package.user_id != user_id:
-        return jsonify({"error": "Forbidden: You do not own this package"}), 403
     
-    node = Node.query.get(current_node_id)
-    if not node:
-        return jsonify({"error": "Node ID not found"}), 404
+    if package.user_id != user_id:
+        return jsonify({"error": "Forbidden"}), 403
 
-    package.current_node_id = current_node_id
+    last_event = PackageEvent.query.filter_by(package_id=package.id)\
+        .order_by(PackageEvent.timestamp.desc()).first()
+
+    if last_event:
+        prev_hash = last_event.current_hash
+    else:
+        # If no history exists, this is the "Genesis Block"
+        prev_hash = "GENESIS_BLOCK_HASH_0000000000000000"
+
+    new_event = PackageEvent(
+        package_id=package.id,
+        node_id=new_node_id,
+        previous_hash=prev_hash,
+        timestamp=datetime.utcnow()
+    )
+
+    new_event.current_hash = new_event.calculate_hash()
+
+    db.session.add(new_event)
+    package.current_node_id = new_node_id
+    
     db.session.commit()
 
     return jsonify({
-        "message": "Package location updated",
-        "token": package.token,
-        "new_location": node.name
+        "message": "Package location updated on blockchain",
+        "block_hash": new_event.current_hash,
+        "previous_hash": new_event.previous_hash
     }), 200
 
 
+# Check the integrity of the package's event chain (blockchain)
+@app.route("/api/tracking/<package_token>/audit", methods=["GET"])
+def audit_package_chain(package_token):
+    package = Package.query.filter_by(token=package_token).first()
+    if not package:
+        return jsonify({"error": "Package not found"}), 404
+
+    events = PackageEvent.query.filter_by(package_id=package.id)\
+        .order_by(PackageEvent.timestamp.asc()).all()
+
+    chain_is_valid = True
+    errors = []
+
+    # Loop through the chain and re-calculate the math
+    for i, event in enumerate(events):
+        # Check if the stored hash matches the data
+        recalculated_hash = event.calculate_hash()
+        if recalculated_hash != event.current_hash:
+            chain_is_valid = False
+            errors.append(f"Block {i} (ID {event.id}) has been tampered with! Data hash mismatch.")
+
+        if i > 0:
+            previous_event = events[i-1]
+            if event.previous_hash != previous_event.current_hash:
+                chain_is_valid = False
+                errors.append(f"Block {i} (ID {event.id}) is broken! It does not link to Block {i-1}.")
+
+    return jsonify({
+        "valid": chain_is_valid,
+        "chain_length": len(events),
+        "errors": errors,
+        "history": [
+            {
+                "node": e.node.name,
+                "timestamp": e.timestamp,
+                "hash": e.current_hash
+            } for e in events
+        ]
+    })
 
 @app.route("/")
 def serve_index():

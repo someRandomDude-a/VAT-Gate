@@ -1,8 +1,9 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+import hashlib
+import json
 
 db = SQLAlchemy()
-
 
 # ------------------------
 # Models
@@ -45,6 +46,7 @@ class SessionToken(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
+
 
 class Node(db.Model):
     __tablename__ = "nodes"
@@ -100,7 +102,6 @@ class NodeLink(db.Model):
     )
 
 
-
 class Package(db.Model):
     __tablename__ = "packages"
 
@@ -132,3 +133,21 @@ class Package(db.Model):
     )
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class PackageEvent(db.Model):
+    __tablename__ = "package_events"
+
+    id = db.Column(db.Integer, primary_key=True)
+    package_id = db.Column(db.Integer, db.ForeignKey('packages.id'), nullable=False)
+    node_id = db.Column(db.Integer, db.ForeignKey('nodes.id'), nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    previous_hash = db.Column(db.String(64), nullable=False)
+    current_hash = db.Column(db.String(64), nullable=False)
+
+    package = db.relationship('Package', backref=db.backref('events', lazy=True, order_by="PackageEvent.timestamp"))
+    node = db.relationship('Node')
+
+    def calculate_hash(self):
+        data_string = f"{self.package_id}{self.node_id}{self.timestamp}{self.previous_hash}"
+        return hashlib.sha256(data_string.encode()).hexdigest()
