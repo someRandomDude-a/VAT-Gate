@@ -13,7 +13,7 @@ services:
       MYSQL_HOST: db
       MYSQL_USER: root
       MYSQL_PASSWORD: example
-      MYSQL_DATABASE: example_db
+      MYSQL_DATABASE: VAT_database
 
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
@@ -35,7 +35,7 @@ services:
     container_name: mariadb-container
     environment:
       MYSQL_ROOT_PASSWORD: example
-      MYSQL_DATABASE: example_db
+      MYSQL_DATABASE: VAT_database
     ports:
       - "3306:3306"
     volumes:
