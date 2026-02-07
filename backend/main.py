@@ -194,7 +194,9 @@ def get_all_tracked_locations():
             {
                 "id": n.id,
                 "name": n.name,
-                "location": n.location
+                "location": n.location,
+                "x": n.x,
+                "y": n.y
             }
             for n in nodes
         ]
@@ -315,6 +317,132 @@ def user_packages():
             for p in packages
         ]
     }), 200
+
+# ------------------------
+# Admin / Management API
+# ------------------------
+
+# Allow admins to create new nodes (locations)
+@app.route("/api/routes/createNode", methods=["POST"])
+def create_node():
+    # 1. Auth Check
+    user_id = require_auth()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    # 2. Access Level Check
+    user = User.query.get(user_id)
+    if not user or user.access_level < 4:
+        return jsonify({"error": "Forbidden: Insufficient access rights"}), 403
+
+    # 3. Parse Data
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+    
+    name = data.get("name")
+    location = data.get("location")
+    # Get coordinates, default to 0.0 if not provided
+    x = data.get("x", 0.0)
+    y = data.get("y", 0.0)
+
+    if not name or not location:
+        return jsonify({"error": "Name and location are required"}), 400
+
+    # 4. Create Node with coordinates
+    new_node = Node(name=name, location=location, x=x, y=y)
+    db.session.add(new_node)
+    db.session.commit()
+
+    return jsonify({
+        "message": "Node created successfully",
+        "node": {
+            "id": new_node.id, 
+            "name": new_node.name, 
+            "location": new_node.location,
+            "x": new_node.x,
+            "y": new_node.y
+        }
+    }), 201
+
+# Create a link between two nodes with time and cost
+@app.route("/api/routes/createNodeLink", methods=["POST"])
+def create_node_link():
+    user_id = require_auth()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+
+    user = User.query.get(user_id)
+    if not user or user.access_level < 4:
+        return jsonify({"error": "Forbidden: Insufficient access rights"}), 403
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    from_node_id = data.get("from_node_id")
+    to_node_id = data.get("to_node_id")
+    time_val = data.get("time")
+    cost_val = data.get("cost")
+
+    if not all([from_node_id, to_node_id, time_val is not None, cost_val is not None]):
+        return jsonify({"error": "Missing required fields (from_node_id, to_node_id, time, cost)"}), 400
+
+    new_link = NodeLink(
+        from_node_id=from_node_id,
+        to_node_id=to_node_id,
+        time=time_val,
+        cost=cost_val
+    )
+    
+    try:
+        db.session.add(new_link)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Failed to create link. It might already exist."}), 409
+
+    return jsonify({"message": "Node link created successfully", "id": new_link.id}), 201
+
+
+# Allow users logged in that own
+@app.route("/api/packages/update", methods=["POST", "PUT"])
+def update_package_location():
+    
+    user_id = require_auth()
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+
+    token = data.get("token")
+    current_node_id = data.get("current_node_id")
+
+    if not token or current_node_id is None:
+        return jsonify({"error": "Token and current_node_id are required"}), 400
+
+    package = Package.query.filter_by(token=token).first()
+    if not package:
+        return jsonify({"error": "Package not found"}), 404
+
+    if package.user_id != user_id:
+        return jsonify({"error": "Forbidden: You do not own this package"}), 403
+    
+    node = Node.query.get(current_node_id)
+    if not node:
+        return jsonify({"error": "Node ID not found"}), 404
+
+    package.current_node_id = current_node_id
+    db.session.commit()
+
+    return jsonify({
+        "message": "Package location updated",
+        "token": package.token,
+        "new_location": node.name
+    }), 200
+
 
 
 @app.route("/")

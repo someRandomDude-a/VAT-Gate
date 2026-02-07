@@ -1,51 +1,41 @@
-# VAT-Gate
+# VAT-Gate API Documentation
 
-## leave what API's you want for the frontend and what you want them to do
+## Overview
 
-- login API to recieve session auth token
-- Route API (does not need auth token)
-  - Sends all tracked locations to frontend
-  - Send two locations to API, returns path of least cost and path of least time
-- Route database API
-  - Create / Update connections between locations
-  - View all existing connections
-- Tracking API
-  - Send package token, returns publicly visible information for said packagae (does not need auth token)
-  - If user is logged in, sends all packages related to their account
+**Authentication:**
 
-Note, every API requires an Auth token unless specifically specified otherwise
+* Most endpoints require an `Authorization` header with a Bearer token: `Authorization: Bearer <token>`.
+* **Access Levels:** Users have an access level (Default: 0).
+* **Level 0:** Standard user (Tracking, Viewing).
+* **Level 4+:** Admin user (Creating Nodes, Linking Nodes).
 
-## API documentation
+## 1. Authentication API
 
-### Login API
+### Login
 
-- Route: `/api/login`
-- Method: POST
-- Expected data:
-  - username (string)
-  - password (string)
-- Format: application/json
-
-**Example:**
+* **Route:** `/api/login`
+* **Method:** `POST`
+* **Auth Required:** No
+* **Description:** Authenticates a user and returns a session token valid for 7 days.
+* **Body:**
 
 ```json
 {
   "username": "ExampleUser",
   "password": "ExamplePassword"
 }
+
 ```
 
-### Registration API
+* **Response:** `{"token": "uuid-string"}`
 
-- Route: `/api/register`
-- Method: POST
-- Expected data:
-- username (string)
-- password (string)
+### Register
 
-- Format: application/json
-
-**Example:**
+* **Route:** `/api/register`
+* **Method:** `POST`
+* **Auth Required:** No
+* **Description:** Creates a new user account (Default Access Level: 0).
+* **Body:**
 
 ```json
 {
@@ -55,58 +45,83 @@ Note, every API requires an Auth token unless specifically specified otherwise
 
 ```
 
-### Get Locations API
+---
 
-- Route: `/api/routes/locations`
-- Method: GET
-- Expected data: None
-- Format: N/A
+## 2. Route & Node API
 
-### Create/Update Connection API
+### Get All Locations
 
-- Route: `/api/routes/connections`
-- Method: POST (or PUT)
-- Headers: `Authorization: Bearer <token>`
-- Expected data:
-- -Note: Your current code implementation is a stub (it returns success without processing data), but usually expects:-
-- from_node_id (integer)
-- to_node_id (integer)
-- time (float/integer)
-- cost (float/integer)
+* **Route:** `/api/routes/locations`
+* **Method:** `GET`
+* **Auth Required:** No
+* **Description:** Returns a list of all trackable nodes/locations, including their coordinates.
+* **Response Example:**
 
-- Format: application/json
+```json
+{
+  "locations": [
+    {
+      "id": 1,
+      "name": "Warehouse A",
+      "location": "New York",
+      "x": 40.7128,
+      "y": -74.0060
+    }
+  ]
+}
 
-**Example:**
+```
+
+### Create Node (Admin Only)
+
+* **Route:** `/api/routes/createNode`
+* **Method:** `POST`
+* **Auth Required:** Yes (**Level 4+**)
+* **Description:** Adds a new location node to the database.
+* **Body:**
+
+```json
+{
+  "name": "Distribution Center B",
+  "location": "123 Logistics Way",
+  "x": 10.5,   // Optional (defaults to 0.0)
+  "y": 20.5    // Optional (defaults to 0.0)
+}
+
+```
+
+### Create Node Link (Admin Only)
+
+* **Route:** `/api/routes/createNodeLink`
+* **Method:** `POST`
+* **Auth Required:** Yes (**Level 4+**)
+* **Description:** Creates a directional connection between two nodes with associated costs and time.
+* **Body:**
 
 ```json
 {
   "from_node_id": 1,
   "to_node_id": 2,
-  "time": 10.5,
-  "cost": 50
+  "time": 4.5,  // e.g., hours
+  "cost": 100.0 // e.g., currency
 }
 
 ```
 
-### View All Connections API
+### View All Connections
 
-- Route: `/api/routes/connections`
-- Method: GET
-- Headers: `Authorization: Bearer <token>`
-- Expected data: None
-- Format: N/A
+* **Route:** `/api/routes/connections`
+* **Method:** `GET`
+* **Auth Required:** Yes
+* **Description:** Returns all existing links between nodes.
 
-### Calculate Route API
+### Calculate Route
 
-- Route: `/api/routes/calculate`
-- Method: POST (or PUT)
-- Expected data:
-- from_node_id (integer)
-- to_node_id (integer)
-
-- Format: application/json
-
-**Example:**
+* **Route:** `/api/routes/calculate`
+* **Method:** `POST`
+* **Auth Required:** No
+* **Description:** Calculates the path of least time and least cost between two nodes.
+* **Body:**
 
 ```json
 {
@@ -116,23 +131,47 @@ Note, every API requires an Auth token unless specifically specified otherwise
 
 ```
 
-### Public Package Tracking API
+* **Response:**
 
-- Route: `/api/tracking/<package_token>`
-- Method: GET
-- Expected data:
-- package_token (string) - *Passed via URL, not JSON body*
+```json
+{
+  "least_cost_path": { "path": [5, 8, 12], "total": 50.0 },
+  "least_time_path": { "path": [5, 12], "total": 10.0 }
+}
 
-- Format: URL Parameter
+```
 
-**Example:**
+---
 
-`GET /api/tracking/abc-123-xyz`
+## 3. Tracking API
 
-### User Packages API
+### Public Package Tracking
 
-- Route: `/api/packages`
-- Method: GET
-- Headers: `Authorization: Bearer <token>`
-- Expected data: None
-- Format: N/A
+* **Route:** `/api/tracking/<package_token>`
+* **Method:** `GET`
+* **Auth Required:** No
+* **Description:** Returns publicly visible status (Status, Last Location) for a specific package.
+* **Example:** `GET /api/tracking/abc-123-xyz`
+
+### User Packages
+
+* **Route:** `/api/packages`
+* **Method:** `GET`
+* **Auth Required:** Yes
+* **Description:** Returns all packages associated with the logged-in user.
+
+### Update Package Location
+
+* **Route:** `/api/packages/update`
+* **Method:** `POST`
+* **Auth Required:** Yes
+* **Description:** Updates the current location of a package. Only updates if package is owned by logged in user.
+* **Body:**
+
+```json
+{
+  "token": "abc-123-xyz",
+  "current_node_id": 3
+}
+
+```

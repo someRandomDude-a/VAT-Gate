@@ -14,7 +14,9 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
     hash = db.Column(db.String(255), nullable=False)
-
+    
+    access_level = db.Column(db.Integer, default=0, nullable=False)
+    
     sessions = db.relationship(
         "SessionToken",
         backref="user",
@@ -51,6 +53,10 @@ class Node(db.Model):
     name = db.Column(db.String(150), nullable=False)
     location = db.Column(db.String(200), nullable=False)
 
+# Coordinates for each location
+    x = db.Column(db.Float, default=0.0)
+    y = db.Column(db.Float, default=0.0)
+    
     outgoing_links = db.relationship(
         "NodeLink",
         foreign_keys="NodeLink.from_node_id",
