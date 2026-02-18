@@ -369,8 +369,9 @@ def create_node():
     name = data.get("name")
     location = data.get("location")
     # Get coordinates, default to 0.0 if not provided
-    x = data.get("x", 0.0)
-    y = data.get("y", 0.0)
+    x = float(data.get("x", 0.0) or 0.0)
+    y = float(data.get("y", 0.0) or 0.0)
+
 
     if not name or not location:
         return jsonify({"error": "Name and location are required"}), 400
@@ -541,3 +542,4 @@ def serve_index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80, debug=True)
+
