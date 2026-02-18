@@ -5,10 +5,6 @@ import json
 
 db = SQLAlchemy()
 
-# ------------------------
-# Models
-# ------------------------
-
 class User(db.Model):
     __tablename__ = "users"
 
@@ -55,7 +51,6 @@ class Node(db.Model):
     name = db.Column(db.String(150), nullable=False)
     location = db.Column(db.String(200), nullable=False)
 
-# Coordinates for each location
     x = db.Column(db.Float, default=0.0)
     y = db.Column(db.Float, default=0.0)
     
@@ -150,4 +145,5 @@ class PackageEvent(db.Model):
 
     def calculate_hash(self):
         data_string = f"{self.package_id}{self.node_id}{self.timestamp}{self.previous_hash}"
+
         return hashlib.sha256(data_string.encode()).hexdigest()
