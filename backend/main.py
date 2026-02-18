@@ -27,13 +27,8 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
-# Holds a cache of all nodes and links for quick access during route calculations
 GRAPH_CACHE = {}
 
-
-# ------------------------
-# Helpers / Middleware
-# ------------------------
 
 def require_auth():
     """
@@ -67,12 +62,12 @@ def verify_password(password: str, hashed: str) -> bool:
 
 
 # ------------------------
-# Auth API
+# Auth API's
 # ------------------------
 
 
 
-# Login API
+# Login
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.get_json(silent=True)
@@ -107,7 +102,7 @@ def login():
     return jsonify({"token": token}), 200
 
 
-# Registration API
+# Registration
 @app.route("/api/register", methods=["POST"])
 def createUser():
     data = request.get_json(silent=True)
@@ -120,12 +115,10 @@ def createUser():
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
 
-    # Check if user already exists
     existing_user = User.query.filter_by(username=username).first()
     if existing_user:
         return jsonify({"error": "Username already taken"}), 409
 
-    # Create user with hashed password
     user = User(
         username=username,
         hash=hash_password(password)
@@ -140,7 +133,7 @@ def createUser():
     }), 201
 
 
-# Get a list of all existing nodes (locations)
+# Get a list of all existing locations
 @app.route("/api/routes/locations", methods=["GET"])
 def get_all_tracked_locations():
     nodes = Node.query.all()
@@ -158,7 +151,7 @@ def get_all_tracked_locations():
     }), 200
 
 # ------------------------
-# Route Database API (AUTH REQUIRED)
+# Routes Database (AUTH REQUIRED)
 # ------------------------
 
 @app.route("/api/routes/connections", methods=["POST", "PUT"])
@@ -168,6 +161,7 @@ def create_or_update_connection():
         return jsonify({"error": "Unauthorized"}), 401
 
     return jsonify({"message": "connection saved"}), 200
+
 
 # Get a list of all existing connections
 @app.route("/api/routes/connections", methods=["GET"])
@@ -193,7 +187,7 @@ def view_all_connections():
     }), 200
 
 # -----------------
-# Route calculation API
+# Route calculation
 # -----------------
 
 def get_graph(weight_field):
@@ -203,11 +197,9 @@ def get_graph(weight_field):
     """
     global GRAPH_CACHE
 
-    # 1. Check if we already have this specific graph in RAM
     if weight_field in GRAPH_CACHE:
         return GRAPH_CACHE[weight_field]
 
-    # 2. If not, we must build it from the DB (The "Slow" part)
     print(f"Building {weight_field} graph from database...") # Debugging log
     links = NodeLink.query.all()
     
@@ -218,7 +210,6 @@ def get_graph(weight_field):
             (link.to_node_id, getattr(link, weight_field))
         )
     
-    # 3. Save it to the global cache for next time
     GRAPH_CACHE[weight_field] = new_graph
     
     return new_graph
@@ -286,10 +277,10 @@ def calculate_route_cost():
     }), 200
 
 # ------------------------
-# Tracking API
+# Tracking
 # ------------------------
 
-# Give details of any package if user has the package token
+# Give details of any package if user has the token
 @app.route("/api/tracking/<package_token>", methods=["GET"])
 def public_package_tracking(package_token):
     package = Package.query.filter_by(token=package_token).first()
@@ -297,7 +288,7 @@ def public_package_tracking(package_token):
     if not package:
         return jsonify({"error": "Package not found"}), 404
 
-    # Determine status
+    # status parsing
     if package.current_node_id is None:
         status = "created"
         last_location = None
@@ -316,7 +307,7 @@ def public_package_tracking(package_token):
     }), 200
 
 
-# Give list of all packages of the given user
+# Give list of all packages sent by user
 @app.route("/api/packages", methods=["GET"])
 def user_packages():
     user_id = require_auth()
@@ -345,23 +336,20 @@ def user_packages():
     }), 200
 
 # ------------------------
-# Admin / Management API
+# Admin management
 # ------------------------
 
-# Allow admins to create new nodes (locations)
+# Allow admins to create new locations
 @app.route("/api/routes/createNode", methods=["POST"])
 def create_node():
-    # 1. Auth Check
     user_id = require_auth()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
 
-    # 2. Access Level Check
     user = User.query.get(user_id)
     if not user or user.access_level < 4:
         return jsonify({"error": "Forbidden: Insufficient access rights"}), 403
 
-    # 3. Parse Data
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
@@ -376,7 +364,6 @@ def create_node():
     if not name or not location:
         return jsonify({"error": "Name and location are required"}), 400
 
-    # 4. Create Node with coordinates
     new_node = Node(name=name, location=location, x=x, y=y)
     db.session.add(new_node)
     db.session.commit()
@@ -392,7 +379,7 @@ def create_node():
         }
     }), 201
 
-# Create a link between two nodes with time and cost
+# Create a link between two nodes with time and cost weight fields
 @app.route("/api/routes/createNodeLink", methods=["POST"])
 def create_node_link():
     user_id = require_auth()
@@ -401,7 +388,7 @@ def create_node_link():
 
     user = User.query.get(user_id)
     if not user or user.access_level < 4:
-        return jsonify({"error": "Forbidden: Insufficient access rights"}), 403
+        return jsonify({"error": "Forbidden"}), 403
 
     data = request.get_json(silent=True)
     if not data:
@@ -438,12 +425,9 @@ def create_node_link():
     return jsonify({"message": "Node link created successfully", "id": new_link.id}), 201
 
 
-# Allow users logged in that own
-# In main.py
-
+# Allow users logged in that own to update packages
 @app.route("/api/packages/update", methods=["POST"])
 def update_package_location():
-    # 1. Auth Check
     user_id = require_auth()
     if not user_id:
         return jsonify({"error": "Unauthorized"}), 401
@@ -495,7 +479,7 @@ def update_package_location():
     }), 200
 
 
-# Check the integrity of the package's event chain (blockchain)
+# Check integrity of the package's event blockchain
 @app.route("/api/tracking/<package_token>/audit", methods=["GET"])
 def audit_package_chain(package_token):
     package = Package.query.filter_by(token=package_token).first()
@@ -508,9 +492,7 @@ def audit_package_chain(package_token):
     chain_is_valid = True
     errors = []
 
-    # Loop through the chain and re-calculate the math
     for i, event in enumerate(events):
-        # Check if the stored hash matches the data
         recalculated_hash = event.calculate_hash()
         if recalculated_hash != event.current_hash:
             chain_is_valid = False
@@ -542,4 +524,5 @@ def serve_index():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=80, debug=True)
+
 
