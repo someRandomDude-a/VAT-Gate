@@ -26,13 +26,15 @@ chmod 600 "$SECURE_KEY"
 export GIT_SSH_COMMAND="ssh -i $SECURE_KEY -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
 
 # Clone the repo if it doesn't exist
-if [ ! -d "$BACKEND_DIR" ]; then
-    git clone "$REPO_URL" "$APP_DIR"
+BRANCH="${BRANCH:-main}"
+
+if [ ! -d "$APP_DIR/.git" ]; then
+    git clone --branch "$BRANCH" --single-branch "$REPO_URL" "$APP_DIR"
 else
-    # Pull latest changes
     cd "$APP_DIR"
-    git reset --hard
-    git pull
+    git fetch origin
+    git checkout "$BRANCH" || git checkout -b "$BRANCH" "origin/$BRANCH"
+    git reset --hard "origin/$BRANCH"
 fi
 
 # Install dependencies only if requirements.txt changed

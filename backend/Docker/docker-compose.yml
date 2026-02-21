@@ -14,6 +14,7 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: example
       MYSQL_DATABASE: VAT_database
+      BRANCH: main
     secrets:
       - deploy_key
     restart: unless-stopped
