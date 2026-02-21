@@ -37,7 +37,7 @@ else
     git reset --hard "origin/$BRANCH"
 fi
 
-# Install dependencies only if requirements.txt changed
+# Install python dependencies only if requirements.txt changed
 if [ -f "$REQ_FILE" ]; then
     CURRENT_HASH=$(sha256sum "$REQ_FILE" | awk '{print $1}')
     PREV_HASH=$(cat "$REQ_HASH_FILE" 2>/dev/null || echo "")
