@@ -18,9 +18,11 @@ Download the Files under VAT-GATE/backend/Docker
   - Add deploy_key.pub to the deploy keys in VAT-GATE
 
 - Step 4:
-> [!NOTE]
-> To change the branch being pulled, edit [Line 17, `BRANCH: your-branch-name`](./backend/Docker/docker-compose.yml#L17)
 Run docker-compose.yml
+
+> [!NOTE]
+> To change the branch being pulled, edit [Line 17, `BRANCH: your-branch-name`](./backend/Docker/docker-compose.yml#L17)  
+
 - Step 5:
 Open a web browser and navigate to `localhost:8080` for the website itself.<br>
 Navigate to `localhost:8081` to access PHPmyadmin portal
