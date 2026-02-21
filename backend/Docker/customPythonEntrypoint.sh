@@ -53,4 +53,4 @@ fi
 
 # Start the app
 cd "$BACKEND_DIR"
-exec python main.py
+exec gunicorn -w 1 --threads 2 -b 0.0.0.0:80 main:app
