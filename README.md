@@ -8,7 +8,7 @@ Front end will be basically let user choose to and from places then calulate the
 ### This project uses docker to run
 
 - Step 1:
-Install docker on your deployment location
+Install docker on your deployment location. For installation, refer to [here](https://docs.docker.com/get-started/get-docker/)
 - Step 2:
 Download the Files under VAT-GATE/backend/Docker
 - Step 3:
