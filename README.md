@@ -12,6 +12,7 @@ Install docker on your deployment location. For installation, refer to [Docker D
 - Step 2:
 Download the Files under VAT-GATE/backend/Docker
 - Step 3:
+  - Open a terminal in the project `root` directory
   - run `cd ./backend/Docker`
   - run `ssh-keygen -t ed25519 -C "docker-deploy-key" -f ./deploy_key -q`
   - Add deploy_key.pub to the deploy keys in VAT-GATE
