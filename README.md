@@ -26,3 +26,6 @@ Run docker-compose.yml
 - Step 5:
 Open a web browser and navigate to `localhost:8080` for the website itself.<br>
 Navigate to `localhost:8081` to access PHPmyadmin portal
+
+## Database Design
+![Database Designer](./backend/Database%20design.png)
