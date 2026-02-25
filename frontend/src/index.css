@@ -1,0 +1,128 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@layer base {
+  :root {
+    --background: 220 20% 97%;
+    --foreground: 220 30% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 30% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 30% 10%;
+
+    --primary: 220 60% 20%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 220 15% 92%;
+    --secondary-foreground: 220 30% 10%;
+
+    --muted: 220 15% 94%;
+    --muted-foreground: 220 10% 46%;
+
+    --accent: 174 60% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 15% 89%;
+    --input: 220 15% 89%;
+    --ring: 220 60% 20%;
+
+    --radius: 0.625rem;
+
+    /* Risk tokens */
+    --risk-low: 152 60% 42%;
+    --risk-low-bg: 152 60% 95%;
+    --risk-medium: 38 92% 50%;
+    --risk-medium-bg: 38 92% 95%;
+    --risk-high: 0 72% 51%;
+    --risk-high-bg: 0 72% 95%;
+
+    /* Chart tokens */
+    --chart-1: 220 60% 20%;
+    --chart-2: 174 60% 40%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 0 72% 51%;
+    --chart-5: 265 50% 55%;
+
+    /* Sidebar */
+    --sidebar-background: 220 60% 14%;
+    --sidebar-foreground: 220 15% 85%;
+    --sidebar-primary: 174 60% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 50% 22%;
+    --sidebar-accent-foreground: 220 15% 90%;
+    --sidebar-border: 220 40% 22%;
+    --sidebar-ring: 174 60% 50%;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(220 60% 14%), hsl(220 55% 25%));
+    --gradient-accent: linear-gradient(135deg, hsl(174 60% 40%), hsl(174 70% 32%));
+    --gradient-risk-low: linear-gradient(135deg, hsl(152 60% 42%), hsl(152 50% 36%));
+    --gradient-risk-medium: linear-gradient(135deg, hsl(38 92% 50%), hsl(38 80% 44%));
+    --gradient-risk-high: linear-gradient(135deg, hsl(0 72% 51%), hsl(0 60% 44%));
+  }
+
+  .dark {
+    --background: 220 30% 6%;
+    --foreground: 210 40% 95%;
+    --card: 220 25% 10%;
+    --card-foreground: 210 40% 95%;
+    --popover: 220 25% 10%;
+    --popover-foreground: 210 40% 95%;
+    --primary: 174 60% 50%;
+    --primary-foreground: 220 60% 10%;
+    --secondary: 220 25% 15%;
+    --secondary-foreground: 210 40% 95%;
+    --muted: 220 20% 14%;
+    --muted-foreground: 220 10% 60%;
+    --accent: 174 60% 44%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 174 60% 50%;
+
+    /* Risk tokens — darker backgrounds for dark mode */
+    --risk-low: 152 55% 50%;
+    --risk-low-bg: 152 40% 12%;
+    --risk-medium: 38 90% 58%;
+    --risk-medium-bg: 38 60% 12%;
+    --risk-high: 0 75% 62%;
+    --risk-high-bg: 0 55% 12%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  code, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+@layer utilities {
+  .risk-low {
+    @apply text-risk-low bg-risk-low-bg;
+  }
+  .risk-medium {
+    @apply text-risk-medium bg-risk-medium-bg;
+  }
+  .risk-high {
+    @apply text-risk-high bg-risk-high-bg;
+  }
+}

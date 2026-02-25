@@ -13,14 +13,25 @@ import os
 app = Flask(__name__)
 CORS(app)
 
+
+# Attempt to read MySQL connection details from environment variables. If
+# any of the required values are missing we fall back to a local
+# SQLite database. This makes the backend easier to run in
+# development environments (e.g. without Docker). To use MySQL set
+# `MYSQL_USER`, `MYSQL_PASSWORD` and `MYSQL_DATABASE`. You can also
+# override the hostname via `MYSQL_HOST` (defaults to "db" in the
+# docker‑compose file).
 DB_USER = os.getenv("MYSQL_USER")
 DB_PASSWORD = os.getenv("MYSQL_PASSWORD")
 DB_HOST = os.getenv("MYSQL_HOST", "db")
 DB_NAME = os.getenv("MYSQL_DATABASE")
 
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
-)
+if DB_USER and DB_PASSWORD and DB_NAME:
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+else:
+    # Default to a local SQLite DB if MySQL settings are not provided
+    sqlite_path = os.path.join(os.path.dirname(__file__), "database.sqlite3")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{sqlite_path}"
 
 db.init_app(app)
 
