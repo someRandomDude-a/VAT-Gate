@@ -1,12 +1,9 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
-from werkzeug.security import generate_password_hash, check_password_hash
-from functools import lru_cache
-import heapq
-from decimal import Decimal
-
+from route_calculator import route_calc, update_graph
+from password_handling import hash_password, verify_password
 from db import db, User, SessionToken, Node, Package, NodeLink, PackageEvent
 import os
 
@@ -27,8 +24,6 @@ db.init_app(app)
 with app.app_context():
     db.create_all()
 
-GRAPH_CACHE = {}
-
 
 def require_auth():
     """
@@ -43,54 +38,47 @@ def require_auth():
     token = auth_header.replace("Bearer ", "", 1)
     session = SessionToken.query.filter_by(token=token).first()
 
-    if not session:
+    if session is None:
         return None
 
-    if session.expires_at < datetime.utcnow():
+    if session.expires_at < datetime.now(timezone.utc):
         db.session.delete(session)
         db.session.commit()
         return None
-
-
+    
     return session.user_id
-
-def hash_password(password: str) -> str:
-    return generate_password_hash(password)
-
-def verify_password(password: str, hashed: str) -> bool:
-    return check_password_hash(hashed, password)
 
 
 # ------------------------
 # Auth API's
 # ------------------------
 
-
-
 # Login
 @app.route("/api/login", methods=["POST"])
 def login():
     data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"error": "Invalid JSON payload"}), 400
+    if data is None:
+            return jsonify({"error": "Invalid JSON payload"}), 400
+    if not isinstance(data, dict):
+            return jsonify({"error": "JSON body must be an object"}), 400
     
-    username = data.json.get("username")
-    password = data.json.get("password")
+    username = data.get("username")
+    password = data.get("password")
 
     if not username or not password:
-        return jsonify({"error": "Missing credentials"}), 400
+        return jsonify({"error": "Missing credentials"}), 401
 
     user = User.query.filter_by(username=username).first()
 
     if not user:
-        return jsonify({"message": "No such user exists!"}), 200
+        return jsonify({"message": "Incorrect Username or Password!"}), 401
 
     if not verify_password(password, user.hash):
-        return jsonify({"message": "Incorrect Password!"}), 200
+        return jsonify({"message": "Incorrect Username or Password!"}), 401
 
     token = str(uuid.uuid4())
     
-    expires_at = datetime.utcnow() + timedelta(days=7)
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
     session = SessionToken(
         token=token,
         user_id=user.id,
@@ -106,11 +94,13 @@ def login():
 @app.route("/api/register", methods=["POST"])
 def createUser():
     data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"error": "Invalid JSON payload"}), 400
+    if data is None:
+            return jsonify({"error": "Invalid JSON payload"}), 400
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body must be an object"}), 400
     
-    username = data.json.get("username")
-    password = data.json.get("password")
+    username = data.get("username")
+    password = data.get("password")
 
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400
@@ -129,7 +119,6 @@ def createUser():
 
     return jsonify({
         "message": "User created successfully",
-        "user_id": user.id
     }), 201
 
 
@@ -150,24 +139,16 @@ def get_all_tracked_locations():
         ]
     }), 200
 
+
 # ------------------------
 # Routes Database (AUTH REQUIRED)
 # ------------------------
-
-@app.route("/api/routes/connections", methods=["POST", "PUT"])
-def create_or_update_connection():
-    user_id = require_auth()
-    if not user_id:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    return jsonify({"message": "connection saved"}), 200
-
 
 # Get a list of all existing connections
 @app.route("/api/routes/connections", methods=["GET"])
 def view_all_connections():
     user_id = require_auth()
-    if not user_id:
+    if user_id is None:
         return jsonify({"error": "Unauthorized"}), 401
 
     links = NodeLink.query.all()
@@ -186,95 +167,33 @@ def view_all_connections():
         ]
     }), 200
 
-# -----------------
-# Route calculation
-# -----------------
-
-def get_graph(weight_field):
-    """
-    Lazy loads the graph from the DB only if it's not already in memory.
-    weight_field: 'time' or 'cost'
-    """
-    global GRAPH_CACHE
-
-    if weight_field in GRAPH_CACHE:
-        return GRAPH_CACHE[weight_field]
-
-    print(f"Building {weight_field} graph from database...") # Debugging log
-    links = NodeLink.query.all()
-    
-    new_graph = {}
-    for link in links:
-        # We build the adjacency list: Node -> [(Neighbor, Weight)]
-        new_graph.setdefault(link.from_node_id, []).append(
-            (link.to_node_id, getattr(link, weight_field))
-        )
-    
-    GRAPH_CACHE[weight_field] = new_graph
-    
-    return new_graph
-
-@lru_cache(maxsize=512)  # Cache results of route calculations for faster repeat queries
-def dijkstra(start_id, end_id, weight_field):
-    """
-    weight_field: "time" or "cost"
-    """
-    graph = {}
-
-    links = NodeLink.query.all()
-    for link in links:
-        graph.setdefault(link.from_node_id, []).append(
-            (link.to_node_id, getattr(link, weight_field))
-        )
-
-    queue = [(Decimal(0), start_id, [])]
-    visited = set()
-
-    while queue:
-        total, current, path = heapq.heappop(queue)
-
-        if current in visited:
-            continue
-        visited.add(current)
-
-        path = path + [current]
-
-        if current == end_id:
-            return {
-                "path": path,
-                "total": float(total)
-            }
-
-        for neighbor, weight in graph.get(current, []):
-            if neighbor not in visited:
-                heapq.heappush(
-                    queue,
-                    (total + Decimal(weight), neighbor, path)
-                )
-
-    return None
-
 
 # calculate least cost and least time path between two locations
 @app.route("/api/routes/calculate", methods=["POST", "PUT"])
 def calculate_route_cost():
     data = request.get_json(silent=True)
-    if not data:
+    if data is None:
         return jsonify({"error": "Invalid JSON"}), 400
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body must be an object"}), 400
 
     from_node_id = data.get("from_node_id")
     to_node_id = data.get("to_node_id")
 
-    if not from_node_id or not to_node_id:
+    if from_node_id is None or to_node_id is None:
         return jsonify({"error": "from_node_id and to_node_id are required"}), 400
 
-    least_cost = dijkstra(from_node_id, to_node_id, "cost")
-    least_time = dijkstra(from_node_id, to_node_id, "time")
+    if Node.query.get(from_node_id) is None or Node.query.get(to_node_id) is None:
+        return jsonify({"error": "Invalid node id"}), 400
+
+    least_cost = route_calc(from_node_id, to_node_id, "cost")
+    least_time = route_calc(from_node_id, to_node_id, "time")
 
     return jsonify({
         "least_cost_path": least_cost,
         "least_time_path": least_time
     }), 200
+
 
 # ------------------------
 # Tracking
@@ -285,7 +204,7 @@ def calculate_route_cost():
 def public_package_tracking(package_token):
     package = Package.query.filter_by(token=package_token).first()
 
-    if not package:
+    if package is None:
         return jsonify({"error": "Package not found"}), 404
 
     # status parsing
@@ -311,7 +230,7 @@ def public_package_tracking(package_token):
 @app.route("/api/packages", methods=["GET"])
 def user_packages():
     user_id = require_auth()
-    if not user_id:
+    if user_id is None:
         return jsonify({"error": "Unauthorized"}), 401
 
     packages = Package.query.filter_by(user_id=user_id).all()
@@ -343,24 +262,28 @@ def user_packages():
 @app.route("/api/routes/createNode", methods=["POST"])
 def create_node():
     user_id = require_auth()
-    if not user_id:
+    if user_id is None:
         return jsonify({"error": "Unauthorized"}), 401
 
     user = User.query.get(user_id)
-    if not user or user.access_level < 4:
+    if user is None or user.access_level < 4:
         return jsonify({"error": "Forbidden: Insufficient access rights"}), 403
 
     data = request.get_json(silent=True)
-    if not data:
+    if data is None:
         return jsonify({"error": "Invalid JSON"}), 400
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body must be an object"}), 400
     
     name = data.get("name")
     location = data.get("location")
-    # Get coordinates, default to 0.0 if not provided
-    x = float(data.get("x", 0.0) or 0.0)
-    y = float(data.get("y", 0.0) or 0.0)
-
-
+    # Get coordinatesm, return error if not provided
+    try:
+        x = float(data.get("x", 0.0) or 0.0)
+        y = float(data.get("y", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return jsonify({"error": "x and y must be numeric"}), 400
+    
     if not name or not location:
         return jsonify({"error": "Name and location are required"}), 400
 
@@ -379,27 +302,35 @@ def create_node():
         }
     }), 201
 
+
 # Create a link between two nodes with time and cost weight fields
 @app.route("/api/routes/createNodeLink", methods=["POST"])
 def create_node_link():
     user_id = require_auth()
-    if not user_id:
+    if user_id is None:
         return jsonify({"error": "Unauthorized"}), 401
 
     user = User.query.get(user_id)
-    if not user or user.access_level < 4:
+    if user is None or user.access_level < 4:
         return jsonify({"error": "Forbidden"}), 403
 
     data = request.get_json(silent=True)
-    if not data:
+    if data is None:
         return jsonify({"error": "Invalid JSON"}), 400
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body must be an object"}), 400
 
     from_node_id = data.get("from_node_id")
     to_node_id = data.get("to_node_id")
     time_val = data.get("time")
     cost_val = data.get("cost")
 
-    if not all([from_node_id, to_node_id, time_val is not None, cost_val is not None]):
+    if (
+        from_node_id is None or
+        to_node_id is None or
+        time_val is None or
+        cost_val is None
+        ):
         return jsonify({"error": "Missing required fields (from_node_id, to_node_id, time, cost)"}), 400
 
     new_link = NodeLink(
@@ -416,12 +347,8 @@ def create_node_link():
         db.session.rollback()
         return jsonify({"error": "Failed to create link. It might already exist."}), 409
 
-# Invalidate the graph cache since the underlying data has changed
-    global GRAPH_CACHE
-    GRAPH_CACHE.clear()
-# Wipe lru_cache of dijkstra since the graph has changed
-    dijkstra.cache_clear()
-
+    #Invalidate graph cache and djkastra cache
+    update_graph()
     return jsonify({"message": "Node link created successfully", "id": new_link.id}), 201
 
 
@@ -429,17 +356,19 @@ def create_node_link():
 @app.route("/api/packages/update", methods=["POST"])
 def update_package_location():
     user_id = require_auth()
-    if not user_id:
+    if user_id is None:
         return jsonify({"error": "Unauthorized"}), 401
     
     data = request.get_json(silent=True)
-    if not data:
+    if data is None:
         return jsonify({"error": "Invalid JSON"}), 400
-    
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body must be an object"}), 400
+
     token = data.get("token")
     new_node_id = data.get("current_node_id")
 
-    if not token or not new_node_id:
+    if token is None or new_node_id is None:
         return jsonify({"error": "Missing data"}), 400
 
     package = Package.query.filter_by(token=token).first()
@@ -462,7 +391,7 @@ def update_package_location():
         package_id=package.id,
         node_id=new_node_id,
         previous_hash=prev_hash,
-        timestamp=datetime.utcnow()
+        timestamp=datetime.now(timezone.utc)
     )
 
     new_event.current_hash = new_event.calculate_hash()
@@ -483,7 +412,7 @@ def update_package_location():
 @app.route("/api/tracking/<package_token>/audit", methods=["GET"])
 def audit_package_chain(package_token):
     package = Package.query.filter_by(token=package_token).first()
-    if not package:
+    if package is None:
         return jsonify({"error": "Package not found"}), 404
 
     events = PackageEvent.query.filter_by(package_id=package.id)\
