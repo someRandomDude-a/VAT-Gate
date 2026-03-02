@@ -1,10 +1,14 @@
 FROM python:3.9-slim
 
 # Install system dependencies
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends git openssh-client\
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libssl-dev \
+    libffi-dev \
+    python3-dev \
+    git \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
-
 # Set working directory
 WORKDIR /app
 
