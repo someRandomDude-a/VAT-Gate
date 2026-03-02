@@ -3,5 +3,5 @@ flask-sqlalchemy
 flask_cors
 pymysql
 gunicorn
-secrets
 pyOpenSSL
+secrets
