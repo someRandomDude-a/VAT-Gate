@@ -1,9 +1,9 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
-import uuid
+import secrets
 from route_calculator import route_calc, update_graph
-from password_handling import hash_password, verify_password
+from password_handling import hash_password, verify_password, hash_token
 from db import db, User, SessionToken, Node, Package, NodeLink, PackageEvent
 import os
 
@@ -36,7 +36,8 @@ def require_auth():
         return None
 
     token = auth_header.replace("Bearer ", "", 1)
-    session = SessionToken.query.filter_by(token=token).first()
+    token_hash = hash_token(token)
+    session = SessionToken.query.filter_by(token_hash=token_hash).first()
 
     if session is None:
         return None
@@ -76,12 +77,14 @@ def login():
     if not verify_password(password, user.hash):
         return jsonify({"message": "Incorrect Username or Password!"}), 401
 
-    token = str(uuid.uuid4())
-    
-    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    token = secrets.token_urlsafe(32)
+    hash = hash_token(token)
+    created_at = datetime.now(timezone.utc)
+    expires_at = created_at + timedelta(days=7)
     session = SessionToken(
-        token=token,
+        token_hash=hash,
         user_id=user.id,
+        created_at=created_at,
         expires_at=expires_at
     )
     
@@ -370,6 +373,9 @@ def update_package_location():
 
     if token is None or new_node_id is None:
         return jsonify({"error": "Missing data"}), 400
+    
+    if Node.query.get(new_node_id) is None:
+        return jsonify({"error": "Invalid node id"}), 400
 
     package = Package.query.filter_by(token=token).first()
     if not package:

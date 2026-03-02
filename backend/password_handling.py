@@ -1,10 +1,13 @@
 from werkzeug.security import generate_password_hash, check_password_hash
-
+import hashlib
 def hash_password(password: str) -> str:
     return generate_password_hash(password)
 
 def verify_password(password: str, hashed: str) -> bool:
     return check_password_hash(hashed, password)
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 if __name__ == "__main__":
     password = input("Enter a password to Hash:\n")
