@@ -6,7 +6,9 @@
 // corresponding error message. Consumers of this module should handle
 // errors appropriately (e.g. by displaying an error message to the user).
 
-const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "";
+// If VITE_API_BASE_URL is not set, default to the local Docker backend.
+// This avoids the common "frontend calls itself" mistake (requests going to :5173).
+const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 interface LoginResponse {
   token?: string;
