@@ -1,0 +1,54 @@
+services:
+  # PHP Service
+  python:
+    build: 
+      context: .
+      dockerfile: customPython.dockerfile
+    container_name: python-container
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+    environment:
+      MYSQL_HOST: db
+      MYSQL_USER: root
+      MYSQL_PASSWORD: example
+      MYSQL_DATABASE: VAT_database
+      BRANCH: frontend
+    secrets:
+      - deploy_key
+    restart: unless-stopped
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin-container
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: example
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  # MariaDB Service
+  db:
+    image: mariadb:latest
+    container_name: mariadb-container
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+      MYSQL_DATABASE: VAT_database
+    ports:
+      - "3306:3306"
+    volumes:
+      - VAT_database:/var/lib/mysql
+    restart: unless-stopped
+
+volumes:
+  VAT_database:
+    driver: local
+
+secrets:
+  deploy_key:
+    file: ./deploy_key
