@@ -11,7 +11,7 @@ def hash_token(token: str) -> str:
 
 if __name__ == "__main__":
     password = input("Enter a password to Hash:\n")
-    hash = hash_password(password)
-    print(hash)
-    print(verify_password(password, hash))
+    password_hash = hash_password(password)
+    print(password_hash)
+    print(verify_password(password, password_hash))
     print("If True, your hash is valid, you can enter this into the database, make sure to copy the entire string together")

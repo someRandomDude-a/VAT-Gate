@@ -74,15 +74,15 @@ def login():
     if not user:
         return jsonify({"message": "Incorrect Username or Password!"}), 401
 
-    if not verify_password(password, user.hash):
+    if not verify_password(password, user.password_hash):
         return jsonify({"message": "Incorrect Username or Password!"}), 401
 
     token = secrets.token_urlsafe(32)
-    hash = hash_token(token)
+    token_hash = hash_token(token)
     created_at = datetime.now(timezone.utc)
     expires_at = created_at + timedelta(days=7)
     session = SessionToken(
-        token_hash=hash,
+        token_hash=token_hash,
         user_id=user.id,
         created_at=created_at,
         expires_at=expires_at
@@ -257,6 +257,77 @@ def user_packages():
         ]
     }), 200
 
+
+#Create a new package for the user
+@app.route("/api/packages/create", methods=["POST"])
+def create_package():
+    user_id = require_auth()
+    if user_id is None:
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "Invalid JSON"}), 400
+    if not isinstance(data, dict):
+        return jsonify({"error": "JSON body must be an object"}), 400
+
+    origin_node_id = data.get("origin_node_id")
+    destination_node_id = data.get("destination_node_id")
+    
+    if origin_node_id is None or destination_node_id is None:
+        return jsonify({"error": "origin_node_id and destination_node_id are required"}), 400
+
+    if origin_node_id == destination_node_id:
+        return jsonify({"error": "Origin and destination cannot be the same"}), 400
+    
+    if Node.query.get(origin_node_id) is None or Node.query.get(destination_node_id) is None:
+        return jsonify({"error": "Invalid node id"}), 400
+    
+    try:
+        package_token = secrets.token_urlsafe(32)
+
+        new_package = Package(
+            token=package_token,
+            user_id=user_id,
+            origin_node_id=origin_node_id,
+            destination_node_id=destination_node_id,
+            current_node_id=origin_node_id,
+            created_at=datetime.now(timezone.utc)
+        )
+        db.sessions.add(new_package)
+        db.session.flush()
+
+        genesis_previous_hash = "GENESIS_BLOCK_HASH_0000000000000000"
+        genesis_event = PackageEvent(
+                    package_id=new_package.id,
+                    node_id=origin_node_id,
+                    previous_hash=genesis_previous_hash,
+                    timestamp=datetime.now(timezone.utc)
+                )
+
+        genesis_event.current_hash = genesis_event.calculate_hash()
+
+        db.session.add(genesis_event)
+
+        db.session.commit()
+
+    except Exception:
+        db.session.rollback()
+        return jsonify({"error": "Failed to create package"}), 500
+
+    return jsonify({
+        "message": "Package created successfully",
+        "package": {
+            "id": new_package.id,
+            "token": new_package.token,
+            "origin": origin_node.name,
+            "destination": destination_node.name,
+            "status": "created",
+            "created_at": new_package.created_at.isoformat()
+        }
+    }), 201
+
+
 # ------------------------
 # Admin management
 # ------------------------
@@ -328,13 +399,11 @@ def create_node_link():
     time_val = data.get("time")
     cost_val = data.get("cost")
 
-    if (
-        from_node_id is None or
-        to_node_id is None or
-        time_val is None or
-        cost_val is None
-        ):
+    if  time_val is None or cost_val is None:
         return jsonify({"error": "Missing required fields (from_node_id, to_node_id, time, cost)"}), 400
+    
+    if db.session.get(Node, from_node_id) is None or db.session.get(Node, to_node_id) is None:
+        return jsonify({"error": "Invalid node id"}), 400
 
     new_link = NodeLink(
         from_node_id=from_node_id,
@@ -402,10 +471,13 @@ def update_package_location():
 
     new_event.current_hash = new_event.calculate_hash()
 
-    db.session.add(new_event)
-    package.current_node_id = new_node_id
-    
-    db.session.commit()
+    try:   
+        db.session.add(new_event)
+        package.current_node_id = new_node_id
+        db.session.commit()
+    except:
+        db.session.rollback()
+        return jsonify({"error": "Update failed"}), 500
 
     return jsonify({
         "message": "Package location updated on blockchain",
@@ -446,7 +518,7 @@ def audit_package_chain(package_token):
         "history": [
             {
                 "node": e.node.name,
-                "timestamp": e.timestamp,
+                "timestamp": e.timestamp.isoformat(),
                 "hash": e.current_hash
             } for e in events
         ]
