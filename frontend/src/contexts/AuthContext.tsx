@@ -73,6 +73,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { success: true };
   };
 
+  const register = async (email: string, password: string) => {
+    // Create the user in the backend database.
+    const res = await api.register(email, password);
+    if (!res || res.error) {
+      return { success: false, error: res?.error || "Registration failed" };
+    }
+    return { success: true };
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);

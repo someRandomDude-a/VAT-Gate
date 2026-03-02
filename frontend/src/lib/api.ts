@@ -6,9 +6,7 @@
 // corresponding error message. Consumers of this module should handle
 // errors appropriately (e.g. by displaying an error message to the user).
 
-// If VITE_API_BASE_URL is not set, default to the local Docker backend.
-// This avoids the common "frontend calls itself" mistake (requests going to :5173).
-const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "";
 
 interface LoginResponse {
   token?: string;
@@ -150,6 +148,17 @@ export async function trackPackage(package_token: string) {
   const resp = await fetch(`${API_BASE_URL}/api/tracking/${encodeURIComponent(package_token)}`);
   if (!resp.ok) {
     throw new Error("Package not found");
+  }
+  return resp.json();
+}
+
+/**
+ * Retrieve the blockchain/audit history for a package.
+ */
+export async function auditPackage(package_token: string) {
+  const resp = await fetch(`${API_BASE_URL}/api/tracking/${encodeURIComponent(package_token)}/audit`);
+  if (!resp.ok) {
+    throw new Error("Failed to fetch audit history");
   }
   return resp.json();
 }

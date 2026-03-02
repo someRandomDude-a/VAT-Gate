@@ -10,7 +10,7 @@ const LoginPage = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState<string>("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const { login, register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -23,49 +23,35 @@ const LoginPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
-
-    if (!email.trim() || !password.trim()) {
+    setNotice("");
+    if (!email.trim() || !password.trim() || (mode === "register" && !confirmPassword.trim())) {
       setError("Please fill in all fields");
+      return;
+    }
+    if (mode === "register" && password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+    setLoading(true);
+    const result =
+      mode === "login"
+        ? await login(email, password)
+        : await register(email, password);
+    setLoading(false);
+    if (!result.success) {
+      setError(result.error || (mode === "login" ? "Login failed" : "Registration failed"));
       return;
     }
 
     if (mode === "register") {
-      if (password.length < 6) {
-        setError("Password must be at least 6 characters");
-        return;
-      }
-      if (password !== confirmPassword) {
-        setError("Passwords do not match");
-        return;
-      }
-
-      setLoading(true);
-      const res = await register(email.trim(), password);
-      setLoading(false);
-
-      if (!res.success) {
-        setError(res.error || "Registration failed");
-        return;
-      }
-
-      // After successful registration, switch to login.
-      setSuccess("Account created. Please sign in.");
+      // After successful registration, automatically switch to login.
       setMode("login");
-      setPassword("");
       setConfirmPassword("");
+      setNotice("Account created! Please sign in.");
       return;
     }
 
-    // Login
-    setLoading(true);
-    const result = await login(email.trim(), password);
-    setLoading(false);
-    if (result.success) {
-      navigate("/dashboard", { replace: true });
-    } else {
-      setError(result.error || "Login failed");
-    }
+    navigate("/dashboard", { replace: true });
   };
 
   return (
@@ -77,12 +63,15 @@ const LoginPage = () => {
           <span className="text-2xl font-bold tracking-tight">VATGuard</span>
         </div>
         <div className="space-y-6 max-w-lg">
-          <h1 className="text-4xl font-bold leading-tight">E-Commerce VAT Compliance & Monitoring Platform</h1>
+          <h1 className="text-4xl font-bold leading-tight">
+            E-Commerce VAT Compliance & Monitoring Platform
+          </h1>
           <p className="text-lg text-primary-foreground/75 leading-relaxed">
             Monitor transactions, classify VAT risks, and ensure your marketplace stays compliant with EU tax regulations.
           </p>
           <div className="grid grid-cols-2 gap-4 pt-4">
-            {[{ value: "€2.4M+", label: "Transactions monitored" },
+            {[
+              { value: "€2.4M+", label: "Transactions monitored" },
               { value: "99.2%", label: "Compliance rate" },
               { value: "150+", label: "Sellers tracked" },
               { value: "24/7", label: "Real-time monitoring" },
@@ -97,16 +86,18 @@ const LoginPage = () => {
         <p className="text-sm text-primary-foreground/40">© 2026 VATGuard. Academic Project.</p>
       </div>
 
-      {/* Right panel */}
+      {/* Right panel - login form */}
       <div className="flex-1 flex items-center justify-center p-8 bg-background lg:rounded-l-3xl">
-        <div className="w-full max-w-md space-y-6">
-          <div className="lg:hidden flex items-center gap-2 mb-2">
+        <div className="w-full max-w-md space-y-8">
+          <div className="lg:hidden flex items-center gap-2 mb-4">
             <Shield className="h-7 w-7 text-accent" />
             <span className="text-xl font-bold">VATGuard</span>
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground">{mode === "login" ? "Welcome back" : "Create your account"}</h2>
+            <h2 className="text-2xl font-bold text-foreground">
+              {mode === "login" ? "Welcome back" : "Create your account"}
+            </h2>
             <p className="mt-1 text-muted-foreground">
               {mode === "login" ? "Sign in to your VATGuard account" : "Register to start using VATGuard"}
             </p>
@@ -119,23 +110,22 @@ const LoginPage = () => {
             </div>
           )}
 
-          {success && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-accent/10 text-accent text-sm">
+          {notice && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 text-emerald-600 text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
-              {success}
+              {notice}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Username / Email</label>
+              <label className="text-sm font-medium text-foreground">Email</label>
               <input
-                type="text"
+                type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                 placeholder="admin@vatguard.com"
-                autoComplete="username"
               />
             </div>
 
@@ -148,7 +138,6 @@ const LoginPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm pr-10"
                   placeholder="••••••••"
-                  autoComplete={mode === "login" ? "current-password" : "new-password"}
                 />
                 <button
                   type="button"
@@ -169,7 +158,6 @@ const LoginPage = () => {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
                   placeholder="••••••••"
-                  autoComplete="new-password"
                 />
               </div>
             )}
@@ -179,24 +167,46 @@ const LoginPage = () => {
               disabled={loading}
               className="w-full py-2.5 px-4 rounded-lg bg-accent text-accent-foreground font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {loading ? (mode === "login" ? "Signing in..." : "Creating account...") : (mode === "login" ? "Sign in" : "Create account")}
+              {loading
+                ? mode === "login"
+                  ? "Signing in..."
+                  : "Creating account..."
+                : mode === "login"
+                  ? "Sign in"
+                  : "Create account"}
             </button>
           </form>
 
-          <div className="flex items-center justify-between text-sm">
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                setSuccess("");
-                setMode(mode === "login" ? "register" : "login");
-                setPassword("");
-                setConfirmPassword("");
-              }}
-              className="text-accent hover:underline"
-            >
-              {mode === "login" ? "New here? Create an account" : "Already have an account? Sign in"}
-            </button>
+          <div className="text-sm text-muted-foreground">
+            {mode === "login" ? (
+              <button
+                type="button"
+                className="underline hover:text-foreground"
+                onClick={() => {
+                  setMode("register");
+                  setError("");
+                  setNotice("");
+                  setPassword("");
+                  setConfirmPassword("");
+                }}
+              >
+                New here? Create an account
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="underline hover:text-foreground"
+                onClick={() => {
+                  setMode("login");
+                  setError("");
+                  setNotice("");
+                  setPassword("");
+                  setConfirmPassword("");
+                }}
+              >
+                Already have an account? Sign in
+              </button>
+            )}
           </div>
 
           {mode === "login" && (
@@ -204,11 +214,13 @@ const LoginPage = () => {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Demo Credentials</p>
               <div className="text-sm space-y-1">
                 <p>
-                  <span className="text-muted-foreground">Admin:</span> <code className="font-mono text-foreground">admin@vatguard.com</code> /{" "}
+                  <span className="text-muted-foreground">Admin:</span>{" "}
+                  <code className="font-mono text-foreground">admin@vatguard.com</code> /{" "}
                   <code className="font-mono text-foreground">admin123</code>
                 </p>
                 <p>
-                  <span className="text-muted-foreground">User:</span> <code className="font-mono text-foreground">user@vatguard.com</code> /{" "}
+                  <span className="text-muted-foreground">User:</span>{" "}
+                  <code className="font-mono text-foreground">user@vatguard.com</code> /{" "}
                   <code className="font-mono text-foreground">user123</code>
                 </p>
               </div>

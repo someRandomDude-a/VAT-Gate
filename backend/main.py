@@ -15,9 +15,13 @@ DB_PASSWORD = os.getenv("MYSQL_PASSWORD")
 DB_HOST = os.getenv("MYSQL_HOST", "db")
 DB_NAME = os.getenv("MYSQL_DATABASE")
 
-app.config["SQLALCHEMY_DATABASE_URI"] = (
-    f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
-)
+# Use MySQL/MariaDB when configured (Docker Compose), otherwise fall back to
+# a local SQLite DB for easier local development.
+if DB_USER and DB_PASSWORD and DB_NAME:
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}/{DB_NAME}"
+else:
+    sqlite_path = os.path.join(os.path.dirname(__file__), "database.sqlite3")
+    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{sqlite_path}"
 
 db.init_app(app)
 
@@ -119,6 +123,7 @@ def createUser():
 
     return jsonify({
         "message": "User created successfully",
+        "user_id": user.id,
     }), 201
 
 
