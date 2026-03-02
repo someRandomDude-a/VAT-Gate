@@ -132,7 +132,7 @@ class PackageEvent(db.Model):
     __tablename__ = "package_events"
 
     id = db.Column(db.Integer, primary_key=True)
-    package_id = db.Column(db.Integer, db.ForeignKey('packages.id'), nullable=False, index=True)
+    package_id = db.Column(db.Integer, db.ForeignKey('packages.id', ondelete="CASCADE"), nullable=False, index=True)
     node_id = db.Column(db.Integer, db.ForeignKey('nodes.id'), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
     

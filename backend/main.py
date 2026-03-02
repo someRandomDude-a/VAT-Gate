@@ -37,7 +37,7 @@ def require_auth():
 
     token = auth_header.replace("Bearer ", "", 1)
     token_hash = hash_token(token)
-    session = SessionToken.query.filter_by(token_hash=token_hash).first()
+    session = db.session.query(SessionToken).filter_by(token_hash=token_hash).first()
 
     if session is None:
         return None
@@ -114,7 +114,7 @@ def createUser():
 
     user = User(
         username=username,
-        hash=hash_password(password)
+        password_hash=hash_password(password)
     )
 
     db.session.add(user)
@@ -291,19 +291,19 @@ def create_package():
             user_id=user_id,
             origin_node_id=origin_node_id,
             destination_node_id=destination_node_id,
-            current_node_id=origin_node_id,
+            current_node_id=None,
             created_at=datetime.now(timezone.utc)
         )
-        db.sessions.add(new_package)
+        db.session.add(new_package)
         db.session.flush()
 
         genesis_previous_hash = "GENESIS_BLOCK_HASH_0000000000000000"
         genesis_event = PackageEvent(
-                    package_id=new_package.id,
-                    node_id=origin_node_id,
-                    previous_hash=genesis_previous_hash,
-                    timestamp=datetime.now(timezone.utc)
-                )
+            package_id=new_package.id,
+            node_id=origin_node_id,
+            previous_hash=genesis_previous_hash,
+            timestamp=datetime.now(timezone.utc)
+        )
 
         genesis_event.current_hash = genesis_event.calculate_hash()
 
@@ -320,8 +320,6 @@ def create_package():
         "package": {
             "id": new_package.id,
             "token": new_package.token,
-            "origin": origin_node.name,
-            "destination": destination_node.name,
             "status": "created",
             "created_at": new_package.created_at.isoformat()
         }
