@@ -84,9 +84,11 @@ def login():
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "Invalid JSON payload"}), 400
-    
-    username = data.json.get("username")
-    password = data.json.get("password")
+
+    # `request.get_json()` already returns a dict. The previous
+    # implementation incorrectly attempted to access `data.json`.
+    username = data.get("username")
+    password = data.get("password")
 
     if not username or not password:
         return jsonify({"error": "Missing credentials"}), 400
@@ -120,8 +122,8 @@ def createUser():
     if not data:
         return jsonify({"error": "Invalid JSON payload"}), 400
     
-    username = data.json.get("username")
-    password = data.json.get("password")
+    username = data.get("username")
+    password = data.get("password")
 
     if not username or not password:
         return jsonify({"error": "Username and password are required"}), 400

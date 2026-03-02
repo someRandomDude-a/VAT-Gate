@@ -4,12 +4,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Shield, Eye, EyeOff, AlertCircle } from "lucide-react";
 
 const LoginPage = () => {
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login, isAuthenticated } = useAuth();
+  const { login, register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   if (isAuthenticated) {
@@ -20,18 +23,35 @@ const LoginPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!email.trim() || !password.trim()) {
+    setNotice("");
+    if (!email.trim() || !password.trim() || (mode === "register" && !confirmPassword.trim())) {
       setError("Please fill in all fields");
       return;
     }
-    setLoading(true);
-    const result = await login(email, password);
-    setLoading(false);
-    if (result.success) {
-      navigate("/dashboard", { replace: true });
-    } else {
-      setError(result.error || "Login failed");
+    if (mode === "register" && password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
     }
+    setLoading(true);
+    const result =
+      mode === "login"
+        ? await login(email, password)
+        : await register(email, password);
+    setLoading(false);
+    if (!result.success) {
+      setError(result.error || (mode === "login" ? "Login failed" : "Registration failed"));
+      return;
+    }
+
+    if (mode === "register") {
+      // After successful registration, automatically switch to login.
+      setMode("login");
+      setConfirmPassword("");
+      setNotice("Account created! Please sign in.");
+      return;
+    }
+
+    navigate("/dashboard", { replace: true });
   };
 
   return (
@@ -75,14 +95,25 @@ const LoginPage = () => {
           </div>
 
           <div>
-            <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
-            <p className="mt-1 text-muted-foreground">Sign in to your VATGuard account</p>
+            <h2 className="text-2xl font-bold text-foreground">
+              {mode === "login" ? "Welcome back" : "Create your account"}
+            </h2>
+            <p className="mt-1 text-muted-foreground">
+              {mode === "login" ? "Sign in to your VATGuard account" : "Register to start using VATGuard"}
+            </p>
           </div>
 
           {error && (
             <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
               <AlertCircle className="h-4 w-4 shrink-0" />
               {error}
+            </div>
+          )}
+
+          {notice && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 text-emerald-600 text-sm">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {notice}
             </div>
           )}
 
@@ -118,22 +149,83 @@ const LoginPage = () => {
               </div>
             </div>
 
+            {mode === "register" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Confirm Password</label>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                  placeholder="••••••••"
+                />
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
               className="w-full py-2.5 px-4 rounded-lg bg-accent text-accent-foreground font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {loading ? "Signing in..." : "Sign in"}
+              {loading
+                ? mode === "login"
+                  ? "Signing in..."
+                  : "Creating account..."
+                : mode === "login"
+                  ? "Sign in"
+                  : "Create account"}
             </button>
           </form>
 
-          <div className="rounded-lg border border-border p-4 space-y-2 bg-muted/50">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Demo Credentials</p>
-            <div className="text-sm space-y-1">
-              <p><span className="text-muted-foreground">Admin:</span> <code className="font-mono text-foreground">admin@vatguard.com</code> / <code className="font-mono text-foreground">admin123</code></p>
-              <p><span className="text-muted-foreground">User:</span> <code className="font-mono text-foreground">user@vatguard.com</code> / <code className="font-mono text-foreground">user123</code></p>
-            </div>
+          <div className="text-sm text-muted-foreground">
+            {mode === "login" ? (
+              <button
+                type="button"
+                className="underline hover:text-foreground"
+                onClick={() => {
+                  setMode("register");
+                  setError("");
+                  setNotice("");
+                  setPassword("");
+                  setConfirmPassword("");
+                }}
+              >
+                New here? Create an account
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="underline hover:text-foreground"
+                onClick={() => {
+                  setMode("login");
+                  setError("");
+                  setNotice("");
+                  setPassword("");
+                  setConfirmPassword("");
+                }}
+              >
+                Already have an account? Sign in
+              </button>
+            )}
           </div>
+
+          {mode === "login" && (
+            <div className="rounded-lg border border-border p-4 space-y-2 bg-muted/50">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Demo Credentials</p>
+              <div className="text-sm space-y-1">
+                <p>
+                  <span className="text-muted-foreground">Admin:</span>{" "}
+                  <code className="font-mono text-foreground">admin@vatguard.com</code> /{" "}
+                  <code className="font-mono text-foreground">admin123</code>
+                </p>
+                <p>
+                  <span className="text-muted-foreground">User:</span>{" "}
+                  <code className="font-mono text-foreground">user@vatguard.com</code> /{" "}
+                  <code className="font-mono text-foreground">user123</code>
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

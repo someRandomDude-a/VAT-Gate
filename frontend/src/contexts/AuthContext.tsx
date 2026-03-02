@@ -16,6 +16,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   updateName: (name: string) => void;
 }
@@ -72,6 +73,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return { success: true };
   };
 
+  const register = async (email: string, password: string) => {
+    // Create the user in the backend database.
+    const res = await api.register(email, password);
+    if (!res || res.error) {
+      return { success: false, error: res?.error || "Registration failed" };
+    }
+    return { success: true };
+  };
+
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -87,7 +97,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated: !!user, isAdmin: user?.role === "admin", login, logout, updateName }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated: !!user, isAdmin: user?.role === "admin", login, register, logout, updateName }}>
       {children}
     </AuthContext.Provider>
   );
