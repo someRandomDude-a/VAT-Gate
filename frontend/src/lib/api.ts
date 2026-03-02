@@ -151,14 +151,3 @@ export async function trackPackage(package_token: string) {
   }
   return resp.json();
 }
-
-/**
- * Retrieve the blockchain/audit history for a package.
- */
-export async function auditPackage(package_token: string) {
-  const resp = await fetch(`${API_BASE_URL}/api/tracking/${encodeURIComponent(package_token)}/audit`);
-  if (!resp.ok) {
-    throw new Error("Failed to fetch audit history");
-  }
-  return resp.json();
-}

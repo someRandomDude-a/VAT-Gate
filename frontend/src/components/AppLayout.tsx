@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { LayoutDashboard, BarChart3, Package, Route, Info, LogOut, Shield, Menu, X, Sun, Moon, Settings, Flag, Check } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const { user, logout, updateName } = useAuth();
@@ -12,6 +12,12 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [showAccount, setShowAccount] = useState(false);
   const [nameInput, setNameInput] = useState(user?.name || "");
   const [nameSaved, setNameSaved] = useState(false);
+
+  // Keep the editable name field in sync when auth state changes
+  // (e.g. immediately after login) to avoid stale/empty state.
+  useEffect(() => {
+    setNameInput(user?.name || "");
+  }, [user?.name]);
 
   const links = [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -30,7 +36,9 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
     setTimeout(() => setNameSaved(false), 2000);
   };
 
-  const initials = user?.name.split(" ").map((n) => n[0]).join("") || "?";
+  // Guard against runtime crashes if `user` exists but `name` is
+  // temporarily undefined during hydration.
+  const initials = user?.name?.split(" ").map((n) => n[0]).join("") || "?";
 
   return (
     <div className="flex h-screen overflow-hidden">

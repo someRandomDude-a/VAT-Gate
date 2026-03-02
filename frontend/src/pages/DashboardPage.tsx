@@ -1,52 +1,16 @@
-import { EU_COUNTRIES } from "@/data/mockData";
+import { MOCK_PACKAGES, EU_COUNTRIES, getCountry, getPackageProgress } from "@/data/mockData";
 import { useAuth } from "@/contexts/AuthContext";
 import { Shield, Package, Route, TrendingDown, MapPin, ArrowRight, CheckCircle, AlertTriangle, Truck, Clock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { useEffect, useMemo, useState } from "react";
-import * as api from "@/lib/api";
-
-type BackendPackage = {
-  id: number;
-  token: string;
-  status: "created" | "in_transit" | "delivered";
-  current_node: string | null;
-  origin_node: string | null;
-  destination_node: string | null;
-  created_at: string;
-};
 
 const DashboardPage = () => {
-  const { user, isAdmin, token, logout } = useAuth();
-  const [pkgs, setPkgs] = useState<BackendPackage[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { user, isAdmin } = useAuth();
 
-  useEffect(() => {
-    const run = async () => {
-      if (!token) return;
-      setLoading(true);
-      try {
-        const res = await api.getPackages(token);
-        setPkgs(res?.packages || []);
-      } catch (e: any) {
-        // If token expired/invalid, force logout to return user to login.
-        if (String(e?.message || "").toLowerCase().includes("unauthorized")) {
-          logout();
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-    run();
-  }, [token, logout]);
-
-  const { activePackages, deliveredPackages } = useMemo(() => {
-    const delivered = pkgs.filter((p) => p.status === "delivered").length;
-    const active = pkgs.length - delivered;
-    return { activePackages: active, deliveredPackages: delivered };
-  }, [pkgs]);
-
-  // Backend only exposes created/in_transit/delivered right now.
-  const atCustoms = 0;
+  const activePackages = MOCK_PACKAGES.filter((p) => p.statuses[p.statuses.length - 1].status !== "delivered").length;
+  const deliveredPackages = MOCK_PACKAGES.filter((p) => p.statuses[p.statuses.length - 1].status === "delivered").length;
+  const totalValue = MOCK_PACKAGES.reduce((s, p) => s + p.value, 0);
+  const totalVAT = MOCK_PACKAGES.reduce((s, p) => s + p.statuses.reduce((vs, st) => vs + st.vatApplied, 0), 0);
+  const atCustoms = MOCK_PACKAGES.filter((p) => p.statuses[p.statuses.length - 1].status === "customs").length;
 
   const vatByCountry = EU_COUNTRIES.slice(0, 10).map((c) => ({
     country: c.code,
@@ -64,8 +28,8 @@ const DashboardPage = () => {
     { label: "Active Packages", value: activePackages.toString(), icon: Package, color: "text-accent" },
     { label: "Delivered", value: deliveredPackages.toString(), icon: CheckCircle, color: "text-risk-low" },
     { label: "At Customs", value: atCustoms.toString(), icon: AlertTriangle, color: "text-risk-medium" },
-    { label: "Total Value", value: "—", icon: TrendingDown, color: "text-accent" },
-    { label: "Total VAT Paid", value: "—", icon: TrendingDown, color: "text-destructive" },
+    { label: "Total Value", value: `€${totalValue.toLocaleString()}`, icon: TrendingDown, color: "text-accent" },
+    { label: "Total VAT Paid", value: `€${totalVAT.toFixed(0)}`, icon: TrendingDown, color: "text-destructive" },
     { label: "EU Countries", value: EU_COUNTRIES.length.toString(), icon: MapPin, color: "text-accent" },
   ];
 
@@ -141,13 +105,9 @@ const DashboardPage = () => {
           <a href="/tracking" className="text-sm text-accent hover:underline">View all →</a>
         </div>
         <div className="divide-y divide-border">
-          {loading && (
-            <div className="px-5 py-6 text-sm text-muted-foreground">Loading shipments…</div>
-          )}
-          {!loading && pkgs.length === 0 && (
-            <div className="px-5 py-6 text-sm text-muted-foreground">No shipments found for this account.</div>
-          )}
-          {!loading && pkgs.slice(0, 6).map((pkg) => {
+          {MOCK_PACKAGES.slice(0, 4).map((pkg) => {
+            const progress = getPackageProgress(pkg);
+            const latest = pkg.statuses[pkg.statuses.length - 1];
             return (
               <div key={pkg.id} className="px-5 py-3 flex items-center gap-4">
                 <div className="h-9 w-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
@@ -155,13 +115,19 @@ const DashboardPage = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground">PKG-{pkg.id}</span>
+                    <span className="font-mono text-xs text-muted-foreground">{pkg.id}</span>
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                    {pkg.origin_node || "—"} <ArrowRight className="h-3 w-3" /> {pkg.destination_node || "—"}
+                    {getCountry(pkg.origin)?.name} <ArrowRight className="h-3 w-3" /> {getCountry(pkg.destination)?.name}
                   </div>
                 </div>
-                <span className="text-xs font-medium text-foreground capitalize">{pkg.status.replace("_", " ")}</span>
+                <div className="w-24 hidden sm:block">
+                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                    <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${progress}%` }} />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1 text-center">{progress}%</p>
+                </div>
+                <span className="text-sm font-medium text-foreground">€{pkg.value.toLocaleString()}</span>
               </div>
             );
           })}
