@@ -15,6 +15,7 @@ Download the Files under VAT-GATE/backend/Docker
   - Open a terminal in the project `root` directory
   - run `cd ./backend/Docker`
   - run `ssh-keygen -t ed25519 -C "docker-deploy-key" -f ./deploy_key -q`
+  - use an empty passphrase
   - Add deploy_key.pub to the [deploy keys in VAT-GATE](https://github.com/someRandomDude-a/VAT-Gate/settings/keys)
 
 - Step 4:
