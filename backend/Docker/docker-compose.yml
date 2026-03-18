@@ -1,9 +1,7 @@
 services:
   # PHP Service
   python:
-    build: 
-      context: .
-      dockerfile: customPython.dockerfile
+    image: ghcr.io/somerandomdude-a/vat-gate:main
     container_name: python-container
     ports:
       - "8080:80"
@@ -15,8 +13,6 @@ services:
       MYSQL_PASSWORD: example
       MYSQL_DATABASE: VAT_database
       BRANCH: main
-    secrets:
-      - deploy_key
     restart: unless-stopped
 
   phpmyadmin:
@@ -48,7 +44,3 @@ services:
 volumes:
   VAT_database:
     driver: local
-
-secrets:
-  deploy_key:
-    file: ./deploy_key
