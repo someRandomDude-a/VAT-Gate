@@ -27,5 +27,4 @@ jobs:
         with:
           context: .
           push: true
-          ssh: default
           tags: ghcr.io/${{ github.repository }}:latest
