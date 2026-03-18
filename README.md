@@ -27,7 +27,6 @@ services:
       MYSQL_USER: root
       MYSQL_PASSWORD: example
       MYSQL_DATABASE: VAT_database
-      BRANCH: main
     restart: unless-stopped
 
   phpmyadmin:
@@ -62,16 +61,7 @@ volumes:
 ```
 
 - Step 3:
-  - Open a terminal in the project `root` directory
-  - run `cd ./backend/Docker`
-  - run `ssh-keygen -t ed25519 -C "docker-deploy-key" -f ./deploy_key -q`
-  - Add deploy_key.pub to the [deploy keys in VAT-GATE](https://github.com/someRandomDude-a/VAT-Gate/settings/keys)
-
-- Step 4:
-Run docker-compose.yml
-
-> [!NOTE]
-> To change the branch being pulled, edit [Line 17, `BRANCH: your-branch-name`](./backend/Docker/docker-compose.yml#L17)  
+Run `docker compose up --build`
 
 - Step 5:
 Open a web browser and navigate to `localhost:8080` for the website itself.<br>
