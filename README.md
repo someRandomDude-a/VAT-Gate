@@ -63,7 +63,11 @@ volumes:
 - Step 3:
 Run `docker compose up --build`
 
-- Step 5:
+> [!NOTE]  
+> For development purpose, the docker compose file in `./backend/Docker` can be used instead.
+> It will build from local context as opposed to pulling from the repository packages.
+
+- Step 4:
 Open a web browser and navigate to `localhost:8080` for the website itself.
 
 Navigate to `localhost:8081` to access PHPmyadmin portal
@@ -102,6 +106,10 @@ cd backend
 python -m pip install -r requirements.txt
 python main.py
 ```
+
+> [!NOTE]
+> This repo uses python 3.14.
+> It may also work on other builds on python but stability and operation is not guaranteed.
 
 Alternatively you can use the provided Docker Compose file
 `backend/Docker/docker-compose.yml` which spins up MariaDB, phpMyAdmin
