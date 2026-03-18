@@ -1,7 +1,9 @@
 services:
   # Python Service
   python:
-    image: ghcr.io/somerandomdude-a/vat-gate:main
+    build:
+      context: ../../
+      dockerfile: backend/Docker/customPython.dockerfile
     container_name: python-container
     ports:
       - "8080:80"
