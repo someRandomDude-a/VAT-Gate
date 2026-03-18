@@ -14,6 +14,7 @@ services:
       MYSQL_DATABASE: VAT_database
     restart: unless-stopped
 
+  # PHP myadmin
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
     container_name: phpmyadmin-container
