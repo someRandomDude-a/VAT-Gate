@@ -35,4 +35,4 @@ jobs:
           context: .
           push: true
           file: ./backend/Docker/customPython.dockerfile
-          tags: ghcr.io/${{ env.REPO_LC }}:latest
+          tags: ghcr.io/${{ github.repository_owner }}/vat-gate:latest
