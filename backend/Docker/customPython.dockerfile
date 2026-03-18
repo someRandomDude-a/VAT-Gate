@@ -1,25 +1,22 @@
-# Use Python 3.9 Slim base image
-FROM python:3.9-slim
+FROM python:3.14-slim
 
-# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libssl-dev \
     libffi-dev \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
-# Set working directory
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy the local repository into the container during build
+COPY backend/requirements.txt /app/backend/
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r /app/backend/requirements.txt
+
 COPY . /app
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
-
-# Expose port
 EXPOSE 80
 
 WORKDIR /app/backend
-# Set the default command to run the app
+
 CMD ["gunicorn", "-w", "1", "--threads", "2", "-b", "0.0.0.0:80", "main:app"]
