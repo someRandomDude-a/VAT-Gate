@@ -7,8 +7,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libffi-dev \
     python3-dev \
-    git \
-    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 # Set working directory
 WORKDIR /app
