@@ -14,21 +14,25 @@ create a `docker-compose.yaml` file
 
 ```yaml
 services:
-  # PHP Service
+  # Python Service
   python:
     image: ghcr.io/somerandomdude-a/vat-gate:main
     container_name: python-container
     ports:
       - "8080:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     environment:
       MYSQL_HOST: db
       MYSQL_USER: root
       MYSQL_PASSWORD: example
       MYSQL_DATABASE: VAT_database
     restart: unless-stopped
+    networks:
+      - backend
 
+  # PHP myadmin
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
     container_name: phpmyadmin-container
@@ -39,7 +43,11 @@ services:
     ports:
       - "8081:80"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
     restart: unless-stopped
 
   # MariaDB Service
@@ -49,15 +57,25 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: example
       MYSQL_DATABASE: VAT_database
-    ports:
-      - "3306:3306"
     volumes:
       - VAT_database:/var/lib/mysql
     restart: unless-stopped
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   VAT_database:
     driver: local
+
+networks:
+  backend:
+    driver: bridge
 ```
 
 - Step 3:
