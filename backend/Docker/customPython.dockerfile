@@ -19,4 +19,4 @@ RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 EXPOSE 80
 
 # Set the default command to run the app
-CMD ["gunicorn", "-w", "1", "--threads", "2", "-b", "0.0.0.0:80", "main:app"]
+CMD ["gunicorn", "-w", "1", "--threads", "2", "-b", "0.0.0.0:80", "backend.main:app"]
