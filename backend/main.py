@@ -7,7 +7,7 @@ from password_handling import hash_password, verify_password, hash_token
 from db import db, User, SessionToken, Node, Package, NodeLink, PackageEvent
 import os
 
-app = Flask(__name__, static_folder="../frontend", static_url_path="")
+app = Flask(__name__, static_folder="../frontend/dist", static_url_path="")
 CORS(app)
 
 DB_USER = os.getenv("MYSQL_USER")
@@ -522,8 +522,9 @@ def audit_package_chain(package_token):
         ]
     })
 
-@app.route("/")
-def serve_index():
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def serve_index(path):
     return app.send_static_file("index.html")
 
 if __name__ == "__main__":
