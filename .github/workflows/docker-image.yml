@@ -30,5 +30,5 @@ jobs:
         with:
           context: .
           push: true
+          file: ./backend/Docker/customPython.dockerfile
           tags: ghcr.io/${{ env.REPO_LC }}:latest
-          file: ./backed/docker/customPython.dockerfile
