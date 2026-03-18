@@ -1,7 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, timezone
 import hashlib
-import json
 
 db = SQLAlchemy()
 
@@ -10,7 +8,7 @@ class User(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
-    hash = db.Column(db.String(255), nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
     
     access_level = db.Column(db.Integer, default=0, nullable=False)
     
@@ -32,7 +30,7 @@ class SessionToken(db.Model):
     __tablename__ = "session_tokens"
 
     id = db.Column(db.Integer, primary_key=True)
-    token = db.Column(db.String(36), unique=True, nullable=False, index=True)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False, index=True)
 
     user_id = db.Column(
         db.Integer,
@@ -40,7 +38,7 @@ class SessionToken(db.Model):
         nullable=False
     )
 
-    created_at = db.Column(db.DateTime(timezone=True), default=datetime.now(timezone.utc), nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False)
     expires_at = db.Column(db.DateTime(timezone=True), nullable=False)
 
 
@@ -101,12 +99,13 @@ class Package(db.Model):
     __tablename__ = "packages"
 
     id = db.Column(db.Integer, primary_key=True)
-    token = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    token = db.Column(db.String(64), unique=True, nullable=False, index=True)
 
     user_id = db.Column(
         db.Integer,
         db.ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True
+        nullable=True,
+        index=True
     )
 
     current_node_id = db.Column(
@@ -127,15 +126,15 @@ class Package(db.Model):
         nullable=True
     )
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False)
 
 class PackageEvent(db.Model):
     __tablename__ = "package_events"
 
     id = db.Column(db.Integer, primary_key=True)
-    package_id = db.Column(db.Integer, db.ForeignKey('packages.id'), nullable=False)
+    package_id = db.Column(db.Integer, db.ForeignKey('packages.id', ondelete="CASCADE"), nullable=False, index=True)
     node_id = db.Column(db.Integer, db.ForeignKey('nodes.id'), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    timestamp = db.Column(db.DateTime, nullable=False)
     
     previous_hash = db.Column(db.String(64), nullable=False)
     current_hash = db.Column(db.String(64), nullable=False)
