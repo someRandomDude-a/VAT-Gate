@@ -3,12 +3,12 @@
 A web based tool too allow senders to easily compare delivery routes based on cost and time parameters.
 Front end will be basically let user choose to and from places then calulate the best route showing him time and route also mode of transport and tracking options
 
-## How To Run?
+## Deployment
 
-### This project uses docker to run
+### This project uses docker to run all components in a containerized manner
 
 - Step 1:
-Install docker on your deployment location. For installation, refer to [Docker Desktop](https://docs.docker.com/get-started/get-docker/) or [Docker Engine](https://docs.docker.com/engine/install/)
+Install docker on your deployment location. For help installing, refer to [Docker Desktop](https://docs.docker.com/get-started/get-docker/) or [Docker Engine](https://docs.docker.com/engine/install/)
 - Step 2:
 create a `docker-compose.yaml` file
 
@@ -89,6 +89,9 @@ Run `docker compose up --build`
 Open a web browser and navigate to `localhost:8080` for the website itself.
 
 Navigate to `localhost:8081` to access PHPmyadmin portal
+> [!IMPORTANT]
+> It is recomended to change the credentials used for the repo and to use a seperate netowrk for the PHPmyadmin portal. This can be achieved by giving the portal its own network and using a reverse proxy.
+> Further, if you do not require the database admin portal, you can simply remove it from the docker-compose file.
 
 ## Database
 
@@ -117,14 +120,6 @@ MySQL connection details from the following environment variables:
 
 If these variables are _not_ provided the server build fails
 
-To run the backend locally without Docker:
-
-```bash
-cd backend
-python -m pip install -r requirements.txt
-python main.py
-```
-
 > [!NOTE]
 > This repo uses python 3.14.
 > It may also work on other builds on python but stability and operation is not guaranteed.
@@ -149,29 +144,3 @@ sample `.env` file is provided with the base URL for API requests. By
 default it points to `http://localhost:8080` which matches the
 configuration in the Docker Compose file. If you run the backend on a
 different port or host adjust `VITE_API_BASE_URL` accordingly.
-
-To get started:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-During development the frontend runs on its own dev server
-(`http://localhost:5173` by default) and proxies API requests to the
-backend according to the base URL defined in `.env`. For production
-builds run `npm run build` and serve the contents of
-`frontend/dist` via any static file server or integrate it into the
-Flask application.
-
-## Deployment
-
-1. Clone or download this repository via GitHub Desktop.
-2. Start the backend using Docker Compose or run it manually.
-3. Start the frontend dev server with `npm run dev` or build it for
-   production with `npm run build`.
-4. Access the frontend at `http://localhost:5173` (development) or
-   wherever you choose to host the static files. The app will
-   automatically communicate with the backend according to the value
-   of `VITE_API_BASE_URL`.
