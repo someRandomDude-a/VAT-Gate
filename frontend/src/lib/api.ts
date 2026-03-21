@@ -6,7 +6,9 @@
 // corresponding error message. Consumers of this module should handle
 // errors appropriately (e.g. by displaying an error message to the user).
 
-const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "";
+// Default to the local backend used during development.
+// This keeps login/registration working even if .env is missing.
+const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
 
 interface LoginResponse {
   token?: string;
@@ -106,12 +108,20 @@ export async function calculateRoute(from_node_id: number, to_node_id: number) {
  * A valid bearer token must be supplied. If authentication fails the
  * API will respond with a 401 status code.
  */
+export class AuthError extends Error {
+  status = 401;
+  constructor() { super("Session expired"); }
+}
+
 export async function getPackages(token: string) {
   const resp = await fetch(`${API_BASE_URL}/api/packages`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
   });
+  if (resp.status === 401) {
+    throw new AuthError();
+  }
   if (!resp.ok) {
     throw new Error("Failed to fetch packages");
   }
@@ -140,6 +150,32 @@ export async function updatePackage(token: string, packageToken: string, current
 }
 
 /**
+ * Create a new package for the authenticated user. Returns the generated
+ * tracking token which the user should save for future reference.
+ */
+export async function createPackage(
+  token: string,
+  origin_node_id: number,
+  destination_node_id: number,
+  name: string,
+  value: number
+) {
+  const resp = await fetch(`${API_BASE_URL}/api/packages`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ origin_node_id, destination_node_id, name, value }),
+  });
+  if (!resp.ok) {
+    const data = await resp.json();
+    throw new Error(data.error || "Failed to create package");
+  }
+  return resp.json();
+}
+
+/**
  * Retrieve public tracking information for a package by its token.
  * This endpoint does not require authentication. It returns the
  * package's status, last location and creation timestamp.
@@ -148,6 +184,18 @@ export async function trackPackage(package_token: string) {
   const resp = await fetch(`${API_BASE_URL}/api/tracking/${encodeURIComponent(package_token)}`);
   if (!resp.ok) {
     throw new Error("Package not found");
+  }
+  return resp.json();
+}
+
+/**
+ * Retrieve the blockchain audit trail for a package by its token.
+ * Returns chain validity, event history with hashes, and any integrity errors.
+ */
+export async function getPackageAudit(package_token: string) {
+  const resp = await fetch(`${API_BASE_URL}/api/tracking/${encodeURIComponent(package_token)}/audit`);
+  if (!resp.ok) {
+    throw new Error("Failed to fetch audit trail");
   }
   return resp.json();
 }

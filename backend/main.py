@@ -1,9 +1,9 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime, timedelta, timezone
-import secrets
-from route_calculator import route_calc, update_graph
-from password_handling import hash_password, verify_password, hash_token
+import uuid
+from route_calculator import route_calc, route_calc_balanced, update_graph
+from password_handling import hash_password, verify_password
 from db import db, User, SessionToken, Node, Package, NodeLink, PackageEvent
 import os
 
@@ -36,13 +36,12 @@ def require_auth():
         return None
 
     token = auth_header.replace("Bearer ", "", 1)
-    token_hash = hash_token(token)
-    session = db.session.query(SessionToken).filter_by(token_hash=token_hash).first()
+    session = SessionToken.query.filter_by(token=token).first()
 
     if session is None:
         return None
 
-    if session.expires_at < datetime.now(timezone.utc):
+    if session.expires_at < datetime.utcnow():
         db.session.delete(session)
         db.session.commit()
         return None
@@ -74,17 +73,15 @@ def login():
     if not user:
         return jsonify({"message": "Incorrect Username or Password!"}), 401
 
-    if not verify_password(password, user.password_hash):
+    if not verify_password(password, user.hash):
         return jsonify({"message": "Incorrect Username or Password!"}), 401
 
-    token = secrets.token_urlsafe(32)
-    token_hash = hash_token(token)
-    created_at = datetime.now(timezone.utc)
-    expires_at = created_at + timedelta(days=7)
+    token = str(uuid.uuid4())
+    
+    expires_at = datetime.utcnow() + timedelta(days=7)
     session = SessionToken(
-        token_hash=token_hash,
+        token=token,
         user_id=user.id,
-        created_at=created_at,
         expires_at=expires_at
     )
     
@@ -114,7 +111,7 @@ def createUser():
 
     user = User(
         username=username,
-        password_hash=hash_password(password)
+        hash=hash_password(password)
     )
 
     db.session.add(user)
@@ -191,10 +188,12 @@ def calculate_route_cost():
 
     least_cost = route_calc(from_node_id, to_node_id, "cost")
     least_time = route_calc(from_node_id, to_node_id, "time")
+    balanced = route_calc_balanced(from_node_id, to_node_id)
 
     return jsonify({
         "least_cost_path": least_cost,
-        "least_time_path": least_time
+        "least_time_path": least_time,
+        "balanced_path": balanced,
     }), 200
 
 
@@ -238,90 +237,91 @@ def user_packages():
 
     packages = Package.query.filter_by(user_id=user_id).all()
 
+    # Bulk-fetch all referenced node names in one query (avoids N+1 lazy loads
+    # and removes dependency on SQLAlchemy relationship attributes).
+    node_ids = {
+        nid for p in packages
+        for nid in (p.current_node_id, p.origin_node_id, p.destination_node_id)
+        if nid is not None
+    }
+    node_names = (
+        {n.id: n.name for n in Node.query.filter(Node.id.in_(node_ids)).all()}
+        if node_ids else {}
+    )
+
     return jsonify({
         "packages": [
             {
                 "id": p.id,
                 "token": p.token,
                 "status": (
-                    "created" if p.current_node_id is None
+                    "created"    if p.current_node_id is None
                     else "delivered" if p.current_node_id == p.destination_node_id
                     else "in_transit"
                 ),
-                "current_node": p.current_node.name if p.current_node else None,
-                "origin_node": p.origin_node.name if p.origin_node else None,
-                "destination_node": p.destination_node.name if p.destination_node else None,
-                "created_at": p.created_at.isoformat()
+                "current_node":     node_names.get(p.current_node_id),
+                "origin_node":      node_names.get(p.origin_node_id),
+                "destination_node": node_names.get(p.destination_node_id),
+                "created_at": p.created_at.isoformat(),
+                "value": float(p.value) if p.value is not None else 0.0,
+                "name": p.name or "",
             }
             for p in packages
         ]
     }), 200
 
-
-#Create a new package for the user
-@app.route("/api/packages/create", methods=["POST"])
+# Create a new package for the authenticated user
+@app.route("/api/packages", methods=["POST"])
 def create_package():
     user_id = require_auth()
     if user_id is None:
         return jsonify({"error": "Unauthorized"}), 401
-    
+
     data = request.get_json(silent=True)
-    if data is None:
+    if data is None or not isinstance(data, dict):
         return jsonify({"error": "Invalid JSON"}), 400
-    if not isinstance(data, dict):
-        return jsonify({"error": "JSON body must be an object"}), 400
 
     origin_node_id = data.get("origin_node_id")
     destination_node_id = data.get("destination_node_id")
-    
-    if origin_node_id is None or destination_node_id is None:
-        return jsonify({"error": "origin_node_id and destination_node_id are required"}), 400
+    name = str(data.get("name", "")).strip()
+    raw_value = data.get("value", 0.0)
+    try:
+        value = float(raw_value) if raw_value not in (None, "") else 0.0
+    except (TypeError, ValueError):
+        return jsonify({"error": "value must be a number"}), 400
 
+    if not origin_node_id or not destination_node_id:
+        return jsonify({"error": "origin_node_id and destination_node_id are required"}), 400
     if origin_node_id == destination_node_id:
-        return jsonify({"error": "Origin and destination cannot be the same"}), 400
-    
+        return jsonify({"error": "Origin and destination must differ"}), 400
     if Node.query.get(origin_node_id) is None or Node.query.get(destination_node_id) is None:
         return jsonify({"error": "Invalid node id"}), 400
-    
-    try:
-        package_token = secrets.token_urlsafe(32)
 
-        new_package = Package(
-            token=package_token,
-            user_id=user_id,
-            origin_node_id=origin_node_id,
-            destination_node_id=destination_node_id,
-            current_node_id=None,
-            created_at=datetime.now(timezone.utc)
-        )
-        db.session.add(new_package)
-        db.session.flush()
-
-        genesis_previous_hash = "GENESIS_BLOCK_HASH_0000000000000000"
-        genesis_event = PackageEvent(
-            package_id=new_package.id,
-            node_id=origin_node_id,
-            previous_hash=genesis_previous_hash,
-            timestamp=datetime.now(timezone.utc)
-        )
-
-        genesis_event.current_hash = genesis_event.calculate_hash()
-
-        db.session.add(genesis_event)
-
-        db.session.commit()
-
-    except Exception:
-        db.session.rollback()
-        return jsonify({"error": "Failed to create package"}), 500
+    package_token = str(uuid.uuid4())
+    package = Package(
+        token=package_token,
+        user_id=user_id,
+        origin_node_id=origin_node_id,
+        destination_node_id=destination_node_id,
+        name=name,
+        value=value,
+    )
+    db.session.add(package)
+    db.session.commit()
 
     return jsonify({
-        "message": "Package created successfully",
+        "token": package_token,
+        "message": "Package created",
         "package": {
-            "id": new_package.id,
-            "token": new_package.token,
+            "id": package.id,
+            "token": package.token,
             "status": "created",
-            "created_at": new_package.created_at.isoformat()
+            "current_node": None,
+            "origin_node": package.origin_node.name if package.origin_node else None,
+            "destination_node": package.destination_node.name if package.destination_node else None,
+            "created_at": package.created_at.isoformat(),
+            "value": float(package.value) if package.value is not None else 0.0,
+            "name": package.name or "",
         }
     }), 201
 
@@ -397,11 +397,13 @@ def create_node_link():
     time_val = data.get("time")
     cost_val = data.get("cost")
 
-    if  time_val is None or cost_val is None:
+    if (
+        from_node_id is None or
+        to_node_id is None or
+        time_val is None or
+        cost_val is None
+        ):
         return jsonify({"error": "Missing required fields (from_node_id, to_node_id, time, cost)"}), 400
-    
-    if db.session.get(Node, from_node_id) is None or db.session.get(Node, to_node_id) is None:
-        return jsonify({"error": "Invalid node id"}), 400
 
     new_link = NodeLink(
         from_node_id=from_node_id,
@@ -440,9 +442,6 @@ def update_package_location():
 
     if token is None or new_node_id is None:
         return jsonify({"error": "Missing data"}), 400
-    
-    if Node.query.get(new_node_id) is None:
-        return jsonify({"error": "Invalid node id"}), 400
 
     package = Package.query.filter_by(token=token).first()
     if not package:
@@ -464,18 +463,15 @@ def update_package_location():
         package_id=package.id,
         node_id=new_node_id,
         previous_hash=prev_hash,
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.utcnow().replace(microsecond=0),
     )
 
     new_event.current_hash = new_event.calculate_hash()
 
-    try:   
-        db.session.add(new_event)
-        package.current_node_id = new_node_id
-        db.session.commit()
-    except:
-        db.session.rollback()
-        return jsonify({"error": "Update failed"}), 500
+    db.session.add(new_event)
+    package.current_node_id = new_node_id
+    
+    db.session.commit()
 
     return jsonify({
         "message": "Package location updated on blockchain",
@@ -527,6 +523,3 @@ def serve_index():
     frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
     return send_from_directory(frontend_dir, "index.html")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=80, debug=True)
-    

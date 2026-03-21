@@ -1,16 +1,55 @@
-import { MOCK_PACKAGES, EU_COUNTRIES, getCountry, getPackageProgress } from "@/data/mockData";
+import { useState, useEffect, useCallback } from "react";
+import { EU_COUNTRIES } from "@/data/mockData";
+import { getPackages } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Shield, Package, Route, TrendingDown, MapPin, ArrowRight, CheckCircle, AlertTriangle, Truck, Clock } from "lucide-react";
+import { Shield, Package, MapPin, ArrowRight, CheckCircle, AlertTriangle, Truck, Clock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
-const DashboardPage = () => {
-  const { user, isAdmin } = useAuth();
+interface BackendPackage {
+  id: number;
+  token: string;
+  status: "created" | "in_transit" | "delivered";
+  current_node: string | null;
+  origin_node: string | null;
+  destination_node: string | null;
+  created_at: string;
+  value: number;
+  name: string;
+}
 
-  const activePackages = MOCK_PACKAGES.filter((p) => p.statuses[p.statuses.length - 1].status !== "delivered").length;
-  const deliveredPackages = MOCK_PACKAGES.filter((p) => p.statuses[p.statuses.length - 1].status === "delivered").length;
-  const totalValue = MOCK_PACKAGES.reduce((s, p) => s + p.value, 0);
-  const totalVAT = MOCK_PACKAGES.reduce((s, p) => s + p.statuses.reduce((vs, st) => vs + st.vatApplied, 0), 0);
-  const atCustoms = MOCK_PACKAGES.filter((p) => p.statuses[p.statuses.length - 1].status === "customs").length;
+const statusIcon = (status: string) => {
+  switch (status) {
+    case "delivered":  return <CheckCircle className="h-4 w-4 text-risk-low" />;
+    case "in_transit": return <Truck className="h-4 w-4 text-accent" />;
+    default:           return <Clock className="h-4 w-4 text-muted-foreground" />;
+  }
+};
+
+const DashboardPage = () => {
+  const { user, isAdmin, token } = useAuth();
+  const [packages, setPackages] = useState<BackendPackage[]>([]);
+
+  const fetchPackages = useCallback(async () => {
+    if (!token) return;
+    try {
+      const data = await getPackages(token);
+      setPackages(data.packages || []);
+    } catch {
+      // Silently keep previous data on refresh failure
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchPackages();
+    const interval = setInterval(fetchPackages, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchPackages]);
+
+  // KPI counts derived from real backend data
+  const activePackages  = packages.filter((p) => p.status !== "delivered").length;
+  const deliveredCount  = packages.filter((p) => p.status === "delivered").length;
+  const inTransitCount  = packages.filter((p) => p.status === "in_transit").length;
+  const totalValue      = packages.reduce((s, p) => s + (p.value || 0), 0);
 
   const vatByCountry = EU_COUNTRIES.slice(0, 10).map((c) => ({
     country: c.code,
@@ -18,19 +57,18 @@ const DashboardPage = () => {
   })).sort((a, b) => a.rate - b.rate);
 
   const statusData = [
-    { name: "In Transit", value: MOCK_PACKAGES.filter((p) => p.statuses[p.statuses.length - 1].status === "in_transit").length, color: "hsl(174, 60%, 40%)" },
-    { name: "At Customs", value: atCustoms, color: "hsl(38, 92%, 50%)" },
-    { name: "Cleared", value: MOCK_PACKAGES.filter((p) => p.statuses[p.statuses.length - 1].status === "cleared").length, color: "hsl(220, 60%, 20%)" },
-    { name: "Delivered", value: deliveredPackages, color: "hsl(152, 60%, 42%)" },
+    { name: "In Transit", value: inTransitCount,                                                           color: "hsl(174, 60%, 40%)" },
+    { name: "Created",    value: packages.filter((p) => p.status === "created").length,                   color: "hsl(220, 60%, 20%)" },
+    { name: "Delivered",  value: deliveredCount,                                                           color: "hsl(152, 60%, 42%)" },
   ].filter((d) => d.value > 0);
 
   const kpis = [
-    { label: "Active Packages", value: activePackages.toString(), icon: Package, color: "text-accent" },
-    { label: "Delivered", value: deliveredPackages.toString(), icon: CheckCircle, color: "text-risk-low" },
-    { label: "At Customs", value: atCustoms.toString(), icon: AlertTriangle, color: "text-risk-medium" },
-    { label: "Total Value", value: `€${totalValue.toLocaleString()}`, icon: TrendingDown, color: "text-accent" },
-    { label: "Total VAT Paid", value: `€${totalVAT.toFixed(0)}`, icon: TrendingDown, color: "text-destructive" },
-    { label: "EU Countries", value: EU_COUNTRIES.length.toString(), icon: MapPin, color: "text-accent" },
+    { label: "Active Packages", value: activePackages.toString(),               icon: Package,       color: "text-accent" },
+    { label: "Delivered",        value: deliveredCount.toString(),               icon: CheckCircle,   color: "text-risk-low" },
+    { label: "In Transit",       value: inTransitCount.toString(),               icon: Truck,         color: "text-risk-medium" },
+    { label: "Total Value",      value: `€${totalValue.toLocaleString()}`,       icon: AlertTriangle, color: "text-accent" },
+    { label: "Total Packages",   value: packages.length.toString(),              icon: Package,       color: "text-destructive" },
+    { label: "EU Countries",     value: EU_COUNTRIES.length.toString(),          icon: MapPin,        color: "text-accent" },
   ];
 
   return (
@@ -76,25 +114,33 @@ const DashboardPage = () => {
 
         <div className="bg-card rounded-xl p-5 border border-border">
           <h3 className="font-semibold text-foreground mb-4">Package Status</h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={statusData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value">
-                {statusData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-2 mt-2">
-            {statusData.map((d) => (
-              <div key={d.name} className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full" style={{ backgroundColor: d.color }} />
-                  <span className="text-muted-foreground">{d.name}</span>
-                </div>
-                <span className="font-semibold text-foreground">{d.value}</span>
+          {statusData.length > 0 ? (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={statusData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={4} dataKey="value">
+                    {statusData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="space-y-2 mt-2">
+                {statusData.map((d) => (
+                  <div key={d.name} className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="h-3 w-3 rounded-full" style={{ backgroundColor: d.color }} />
+                      <span className="text-muted-foreground">{d.name}</span>
+                    </div>
+                    <span className="font-semibold text-foreground">{d.value}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-48 text-muted-foreground text-sm">
+              No packages yet
+            </div>
+          )}
         </div>
       </div>
 
@@ -104,34 +150,45 @@ const DashboardPage = () => {
           <h3 className="font-semibold text-foreground">Active Shipments</h3>
           <a href="/tracking" className="text-sm text-accent hover:underline">View all →</a>
         </div>
-        <div className="divide-y divide-border">
-          {MOCK_PACKAGES.slice(0, 4).map((pkg) => {
-            const progress = getPackageProgress(pkg);
-            const latest = pkg.statuses[pkg.statuses.length - 1];
-            return (
-              <div key={pkg.id} className="px-5 py-3 flex items-center gap-4">
+        {packages.length === 0 ? (
+          <div className="px-5 py-8 text-center text-muted-foreground text-sm">
+            No shipments found. <a href="/tracking" className="text-accent hover:underline">Add a package</a> to get started.
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {packages.slice(0, 4).map((pkg) => (
+              <div key={pkg.token} className="px-5 py-3 flex items-center gap-4">
                 <div className="h-9 w-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                  <Package className="h-4 w-4 text-accent" />
+                  {statusIcon(pkg.status)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs text-muted-foreground">{pkg.id}</span>
+                    {pkg.name ? (
+                      <span className="text-sm font-medium text-foreground truncate max-w-[160px]">{pkg.name}</span>
+                    ) : (
+                      <span className="font-mono text-xs text-muted-foreground truncate max-w-[160px]">{pkg.token.slice(0, 20)}…</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                    {getCountry(pkg.origin)?.name} <ArrowRight className="h-3 w-3" /> {getCountry(pkg.destination)?.name}
+                    <span>{pkg.origin_node || "—"}</span>
+                    <ArrowRight className="h-3 w-3" />
+                    <span>{pkg.destination_node || "—"}</span>
                   </div>
                 </div>
-                <div className="w-24 hidden sm:block">
-                  <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${progress}%` }} />
-                  </div>
-                  <p className="text-[10px] text-muted-foreground mt-1 text-center">{progress}%</p>
+                <div className="hidden sm:flex items-center gap-1.5">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    pkg.status === "delivered"  ? "bg-risk-low-bg text-risk-low" :
+                    pkg.status === "in_transit" ? "bg-accent/10 text-accent" :
+                    "bg-muted text-muted-foreground"
+                  }`}>
+                    {pkg.status === "delivered" ? "Delivered" : pkg.status === "in_transit" ? "In Transit" : "Created"}
+                  </span>
                 </div>
-                <span className="text-sm font-medium text-foreground">€{pkg.value.toLocaleString()}</span>
+                <span className="text-sm font-medium text-foreground">€{(pkg.value || 0).toLocaleString()}</span>
               </div>
-            );
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

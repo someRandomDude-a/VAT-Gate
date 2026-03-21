@@ -17,7 +17,7 @@
 * **Method:** `POST`
 * **Auth Required:** No
 * **Description:** Authenticates a user and returns a session token valid for 7 days.
-* **Request Body:**
+* **Body:**
 
 ```json
 {
@@ -35,7 +35,7 @@
 * **Method:** `POST`
 * **Auth Required:** No
 * **Description:** Creates a new user account (Default Access Level: 0).
-* **Request Body:**
+* **Body:**
 
 ```json
 {
@@ -78,7 +78,7 @@
 * **Method:** `POST`
 * **Auth Required:** Yes (**Level 4+**)
 * **Description:** Adds a new location node to the database.
-* **Request Body:**
+* **Body:**
 
 ```json
 {
@@ -96,7 +96,7 @@
 * **Method:** `POST`
 * **Auth Required:** Yes (**Level 4+**)
 * **Description:** Creates a directional connection between two nodes with associated costs and time.
-* **Request Body:**
+* **Body:**
 
 ```json
 {
@@ -121,7 +121,7 @@
 * **Method:** `POST`
 * **Auth Required:** No
 * **Description:** Calculates the path of least time and least cost between two nodes.
-* **Request Body:**
+* **Body:**
 
 ```json
 {
@@ -160,42 +160,13 @@
 * **Auth Required:** Yes
 * **Description:** Returns all packages associated with the logged-in user.
 
-### Create New Package
-
-* **Route:** `/api/packages/create`
-* **Method:** `POST`
-* **Auth Required:** Yes
-* **Description:** Creates a new package for the authenticated user, this package is initialized with origin and destination node. A secure tracking token is then generated and the package is registered with a new blockchain package event.
-* **Request Body:**
-
-```json
-{
-  "origin_node_id": 1,
-  "destination_node_id": 2
-}
-```
-
-* **Response:**
-
-```json
-{
-  "message": "Package created successfully",
-    "package": {
-      "id": 12,
-      "token": "64_CHARACTER_HASH_STRING",
-      "status": "created",
-      "created_at": "2026-03-02T19:13:49+00:00"
-    }
-}
-```
-
 ### Update Package Location
 
 * **Route:** `/api/packages/update`
 * **Method:** `POST`
 * **Auth Required:** Yes
 * **Description:** Updates the current location of a package. Only updates if package is owned by logged in user.
-* **Request Body:**
+* **Body:**
 
 ```json
 {

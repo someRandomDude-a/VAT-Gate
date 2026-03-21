@@ -76,3 +76,31 @@ def route_calc(start_id, end_id, weight_field):
                 )
 
     return None
+
+
+def route_calc_balanced(start_id, end_id):
+    """
+    Balanced route: minimises a normalised combination of cost and time.
+    Uses approximate max values from the seeded dataset for normalisation.
+    Not cached because the weight is computed, not a DB column.
+    """
+    links = NodeLink.query.all()
+    graph = {}
+    for link in links:
+        combined = float(link.cost) / 260.0 + float(link.time) / 18.0
+        graph.setdefault(link.from_node_id, []).append((link.to_node_id, combined))
+
+    queue = [(0.0, start_id, [])]
+    visited = set()
+    while queue:
+        total, current, path = heapq.heappop(queue)
+        if current in visited:
+            continue
+        visited.add(current)
+        path = path + [current]
+        if current == end_id:
+            return {"path": path}
+        for neighbor, weight in graph.get(current, []):
+            if neighbor not in visited:
+                heapq.heappush(queue, (total + weight, neighbor, path))
+    return None
