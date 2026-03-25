@@ -1,26 +1,40 @@
-# Use Python 3.9 Slim base image
-FROM python:3.9-slim
+# ---- Frontend build stage ----
+FROM node:20-alpine AS frontend-builder
 
-# Install system dependencies
+WORKDIR /app/frontend
+
+# Copy only package files first
+COPY frontend/package*.json ./
+RUN npm install
+
+# Copy the rest of the frontend source
+COPY frontend/ ./
+
+# Build the TSX app
+RUN npm run build
+
+#  --------------- backend build stage ------------------
+FROM python:3.14-slim
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libssl-dev \
     libffi-dev \
-    python3-dev \
-    git \
-    openssh-client \
-    && rm -rf /var/lib/apt/lists/*
-# Set working directory
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copy the local repository into the container during build
+COPY backend/requirements.txt /app/backend/
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r /app/backend/requirements.txt
+
 COPY . /app
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-# Expose port
 EXPOSE 80
 
-# Set the default command to run the app
-CMD ["gunicorn", "-w", "1", "--threads", "2", "-b", "0.0.0.0:80", "backend.main:app"]
+WORKDIR /app/backend
+
+CMD ["gunicorn", "-w", "1", "--threads", "2", "-b", "0.0.0.0:80", "main:app"]
